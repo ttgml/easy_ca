@@ -59,7 +59,7 @@
                                 <option value="">请选择一个证书颁发机构</option>
                                 {% for ca in cas %}
                                     {% if ca.status == 'active' %}
-                                        <option value="{{ ca.id }}">{{ ca.name }} ({{ ca.common_name }})</option>
+                                        <option value="{{ ca.id }}" {% if request.args.get('ca_id')|int == ca.id %}selected{% endif %}>{{ ca.name }} ({{ ca.common_name }})</option>
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
