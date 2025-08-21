@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}关于 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <section class="about">
+        <h2>关于Easy CA系统</h2>
+        <p>Easy CA系统是一个基于Flask框架开发的证书管理应用，旨在提供简单、安全、高效的证书管理解决方案。</p>
+        
+        <h3>系统特点</h3>
+        <ul>
+            <li>支持证书的生成、签名、验证和撤销</li>
+            <li>基于Web的用户界面，操作简单直观</li>
+            <li>支持多种证书格式</li>
+            <li>完善的安全机制，确保证书的安全性</li>
+        </ul>
+        
+        <h3>技术栈</h3>
+        <ul>
+            <li>后端：Python + Flask</li>
+            <li>数据库：SQLite (开发) / PostgreSQL (生产)</li>
+            <li>前端：HTML, CSS, JavaScript</li>
+            <li>加密库：Cryptography</li>
+        </ul>
+    </section>
+{% endblock %}
