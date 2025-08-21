@@ -82,7 +82,15 @@ class CertificateAuthority(BaseModel):
     name = db.Column(db.String(100), nullable=False)
     common_name = db.Column(db.String(255), nullable=False)
     organization = db.Column(db.String(100))
+    organizational_unit = db.Column(db.String(100))  # 组织单位 (OU)
+    country = db.Column(db.String(2))               # 国家 (C)
+    state = db.Column(db.String(100))               # 省/州 (ST)
+    locality = db.Column(db.String(100))            # 城市 (L)
     validity_years = db.Column(db.Integer, default=10)
+    
+    # 有效期
+    valid_from = db.Column(db.DateTime, nullable=False)
+    valid_to = db.Column(db.DateTime, nullable=False)
     
     # 自引用关系，支持CA层次结构
     parent_id = db.Column(db.Integer, db.ForeignKey('certificate_authorities.id'))
@@ -91,6 +99,9 @@ class CertificateAuthority(BaseModel):
     # 密钥类型和大小
     key_type = db.Column(db.String(20), default='RSA')  # RSA或ECC
     key_size = db.Column(db.Integer, default=2048)  # 2048/4096或ec256
+    
+    # 序列号
+    serial_number = db.Column(db.String(100), unique=True)
     
     # 加密存储的证书和私钥
     certificate = db.Column(db.Text, nullable=False)  # PEM格式的CA证书
@@ -101,6 +112,8 @@ class CertificateAuthority(BaseModel):
     
     # 状态
     status = db.Column(db.String(20), default='active')  # active, revoked
+    revoked_at = db.Column(db.DateTime)
+    revocation_reason = db.Column(db.String(255))
     
     def set_private_key(self, private_key):
         """加密并存储私钥"""
@@ -176,3 +189,19 @@ class Certificate(BaseModel):
         if self.sans:
             return json.loads(self.sans)
         return []
+    
+    def is_expiring_soon(self, days=30):
+        """检查证书是否即将过期
+        
+        Args:
+            days (int): 天数阈值，默认30天
+            
+        Returns:
+            bool: 如果证书在指定天数内过期则返回True，否则返回False
+        """
+        if self.status != 'valid':
+            return False
+        
+        from datetime import datetime, timedelta
+        threshold_date = datetime.utcnow() + timedelta(days=days)
+        return self.valid_to <= threshold_date

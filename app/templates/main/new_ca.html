@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}新建证书颁发机构 - Easy CA系统{% endblock %}
+{% block title %}创建新的CA - Easy CA{% endblock %}
 
 {% block content %}
-    <div class="form-container">
-        <h2>新建证书颁发机构</h2>
+    <div class="new-ca max-w-2xl mx-auto">
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">创建新的证书颁发机构 (CA)</h2>
+            <p class="text-gray-600">填写以下信息以创建新的根CA</p>
+        </div>
         
         <!-- 显示消息 -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -15,51 +18,102 @@
             {% endif %}
         {% endwith %}
         
-        <form method="POST" action="{{ url_for('main.new_ca') }}">
-            <div class="form-group">
-                <label for="name">CA名称</label>
-                <input type="text" id="name" name="name" required placeholder="例如：我的公司根CA">
-            </div>
-            
-            <div class="form-group">
-                <label for="common_name">通用名称 (CN)</label>
-                <input type="text" id="common_name" name="common_name" required placeholder="例如：mycompany.com">
-            </div>
-            
-            <div class="form-group">
-                <label for="organization">组织名称 (可选)</label>
-                <input type="text" id="organization" name="organization" placeholder="例如：我的公司名称">
-            </div>
-            
-            <div class="form-group">
-                <label for="validity_years">有效期 (年)</label>
-                <select id="validity_years" name="validity_years">
-                    <option value="1">1年</option>
-                    <option value="3">3年</option>
-                    <option value="5" selected>5年</option>
-                    <option value="10">10年</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="key_type">密钥类型</label>
-                <select id="key_type" name="key_type">
-                    <option value="RSA" selected>RSA</option>
-                    <option value="ECC">ECC</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label for="key_size">密钥大小</label>
-                <select id="key_size" name="key_size">
-                    <option value="2048" selected>2048位 (RSA)</option>
-                    <option value="4096">4096位 (RSA)</option>
-                    <option value="256">256位 (ECC)</option>
-                </select>
-            </div>
-            
-            <button type="submit" class="btn btn-primary">创建CA</button>
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">取消</a>
-        </form>
+        <div class="bg-white rounded-lg shadow">
+            <form method="POST" action="{{ url_for('main.new_ca') }}" class="p-6">
+                <div class="space-y-6">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">CA名称 *</label>
+                        <input type="text" id="name" name="name" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：我的公司根CA">
+                        <p class="mt-1 text-sm text-gray-500">用于标识此CA的名称，例如 "My Company Root CA"</p>
+                    </div>
+                    
+                    <div>
+                        <label for="common_name" class="block text-sm font-medium text-gray-700 mb-1">通用名称 (Common Name) *</label>
+                        <input type="text" id="common_name" name="common_name" required 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：mycompany.com">
+                        <p class="mt-1 text-sm text-gray-500">CA证书的通用名称，例如 "My Company Root CA"</p>
+                    </div>
+                    
+                    <div>
+                        <label for="organization" class="block text-sm font-medium text-gray-700 mb-1">组织名称 (Organization)</label>
+                        <input type="text" id="organization" name="organization" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：我的公司名称">
+                        <p class="mt-1 text-sm text-gray-500">组织的完整法定名称，例如 "My Company Inc."</p>
+                    </div>
+                    
+                    <div>
+                        <label for="organizational_unit" class="block text-sm font-medium text-gray-700 mb-1">组织单位 (Organizational Unit)</label>
+                        <input type="text" id="organizational_unit" name="organizational_unit" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-sm text-gray-500">可选，例如 "IT Department" 或 "Security Division"</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="country" class="block text-sm font-medium text-gray-700 mb-1">国家 (Country)</label>
+                            <input type="text" id="country" name="country" maxlength="2" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <p class="mt-1 text-sm text-gray-500">两个字母的国家代码，例如 "US"</p>
+                        </div>
+                        
+                        <div>
+                            <label for="state" class="block text-sm font-medium text-gray-700 mb-1">省/州 (State/Province)</label>
+                            <input type="text" id="state" name="state" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label for="locality" class="block text-sm font-medium text-gray-700 mb-1">城市 (Locality)</label>
+                            <input type="text" id="locality" name="locality" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="validity_years" class="block text-sm font-medium text-gray-700 mb-1">有效期 (年)</label>
+                            <select id="validity_years" name="validity_years" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="1">1年</option>
+                                <option value="3">3年</option>
+                                <option value="5" selected>5年</option>
+                                <option value="10">10年</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="key_type" class="block text-sm font-medium text-gray-700 mb-1">密钥类型</label>
+                            <select id="key_type" name="key_type" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="RSA" selected>RSA</option>
+                                <option value="ECC">ECC</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="key_size" class="block text-sm font-medium text-gray-700 mb-1">密钥大小</label>
+                            <select id="key_size" name="key_size" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="2048" selected>2048位 (RSA)</option>
+                                <option value="4096">4096位 (RSA)</option>
+                                <option value="256">256位 (ECC)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                        <a href="{{ url_for('main.dashboard') }}" 
+                           class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                            取消
+                        </a>
+                        <button type="submit" 
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
+                            <i class="fas fa-plus-circle mr-2"></i>创建CA
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 {% endblock %}

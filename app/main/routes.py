@@ -1,10 +1,17 @@
+from flask import render_template, redirect, url_for, flash, request, Response
+from flask_login import login_required, current_user
+from app.models import CertificateAuthority, Certificate
+from datetime import datetime, timedelta, timezone
+import uuid
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, ec
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.x509.oid import NameOID
+import logging
+
 def init_routes(main_bp):
     """初始化main蓝图的路由"""
-    from flask import render_template, redirect, url_for, flash, request
-    from flask_login import login_required, current_user
-    from app.models import CertificateAuthority, Certificate
-    from datetime import datetime, timedelta
-    import uuid
     
     @main_bp.route('/')
     @main_bp.route('/home')
@@ -51,6 +58,10 @@ def init_routes(main_bp):
             name = request.form.get('name')
             common_name = request.form.get('common_name')
             organization = request.form.get('organization')
+            organizational_unit = request.form.get('organizational_unit')  # 组织单位 (OU)
+            country = request.form.get('country')                          # 国家 (C)
+            state = request.form.get('state')                              # 省/州 (ST)
+            locality = request.form.get('locality')                        # 城市 (L)
             validity_years = int(request.form.get('validity_years', 10))
             key_type = request.form.get('key_type', 'RSA')
             key_size = int(request.form.get('key_size', 2048))
@@ -65,10 +76,7 @@ def init_routes(main_bp):
                 # 创建一个新的CA
                 from cryptography.hazmat.primitives import hashes
                 from cryptography.hazmat.primitives.asymmetric import rsa, ec
-                from cryptography import x509
                 from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import serialization
-                import datetime
                 
                 # 生成密钥对
                 if key_type == 'RSA':
@@ -82,23 +90,38 @@ def init_routes(main_bp):
                     )
                 
                 # 创建证书主体
-                subject = x509.Name([
+                subject_attrs = [
                     x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                ])
+                ]
                 
                 # 添加组织信息（如果有）
                 if organization:
-                    subject = x509.Name([
-                        x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                        x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization),
-                    ])
+                    subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization))
+                
+                # 添加组织单位信息（如果有）
+                if organizational_unit:
+                    subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit))
+                
+                # 添加国家信息（如果有）
+                if country:
+                    subject_attrs.append(x509.NameAttribute(NameOID.COUNTRY_NAME, country))
+                
+                # 添加省/州信息（如果有）
+                if state:
+                    subject_attrs.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, state))
+                
+                # 添加城市信息（如果有）
+                if locality:
+                    subject_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, locality))
+                
+                subject = x509.Name(subject_attrs)
                 
                 # 因为是自签名证书，颁发者和主体相同
                 issuer = subject
                 
                 # 设置证书有效期
-                valid_from = datetime.datetime.utcnow()
-                valid_to = valid_from + datetime.timedelta(days=365 * validity_years)
+                valid_from = datetime.now(timezone.utc)
+                valid_to = valid_from + timedelta(days=365 * validity_years)
                 
                 # 创建证书生成器
                 cert_builder = (
@@ -137,12 +160,26 @@ def init_routes(main_bp):
                     encoding=serialization.Encoding.PEM
                 ).decode('utf-8')
                 
+                # 提取证书序列号
+                serial_number = str(certificate.serial_number)
+                
+                # 设置CA有效期
+                valid_from = datetime.now(timezone.utc)
+                valid_to = valid_from + timedelta(days=365 * validity_years)
+                
                 # 创建CA记录
                 new_ca = CertificateAuthority(
                     name=name,
                     common_name=common_name,
                     organization=organization,
+                    organizational_unit=organizational_unit,  # 组织单位 (OU)
+                    country=country,                          # 国家 (C)
+                    state=state,                              # 省/州 (ST)
+                    locality=locality,                        # 城市 (L)
+                    serial_number=serial_number,              # 序列号
                     validity_years=validity_years,
+                    valid_from=valid_from,
+                    valid_to=valid_to,
                     key_type=key_type,
                     key_size=key_size,
                     certificate=certificate_pem,
@@ -214,18 +251,15 @@ def init_routes(main_bp):
             
             try:
                 # 生成证书（使用cryptography库）
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import serialization
-                import datetime
                 
                 # 生成新的密钥对
                 cert_private_key = rsa.generate_private_key(
                     public_exponent=65537,
                     key_size=2048,
                 )
+                # 确保ca_private_key是正确的类型
+                if not isinstance(ca_private_key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey)):
+                    raise ValueError("CA私钥类型不正确")
                 
                 # 解析CA私钥
                 ca_private_key_pem = ca.get_private_key()
@@ -247,8 +281,8 @@ def init_routes(main_bp):
                 issuer = ca_cert.subject
                 
                 # 设置证书有效期
-                valid_from = datetime.datetime.utcnow()
-                valid_to = valid_from + datetime.timedelta(days=validity_days)
+                valid_from = datetime.now(timezone.utc)
+                valid_to = valid_from + timedelta(days=validity_days)
                 
                 # 创建证书生成器
                 cert_builder = (
@@ -358,7 +392,7 @@ def init_routes(main_bp):
         try:
             # 更新证书状态
             cert.status = 'revoked'
-            cert.revoked_at = datetime.utcnow()
+            cert.revoked_at = datetime.now(timezone.utc)
             cert.revocation_reason = request.form.get('revocation_reason', 'Unspecified')
             cert.save()
             
@@ -367,6 +401,195 @@ def init_routes(main_bp):
             flash(f'吊销证书失败：{str(e)}', 'danger')
         
         return redirect(url_for('main.certificate_detail', cert_id=cert_id))
+
+    @main_bp.route('/ca/<int:ca_id>/revoke', methods=['POST'])
+    @login_required
+    def revoke_ca(ca_id):
+        """吊销CA"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权吊销该CA', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 检查CA是否已吊销
+        if ca.status != 'active':
+            flash('CA已不是活跃状态，无需吊销', 'warning')
+            return redirect(url_for('main.ca_detail', ca_id=ca_id))
+        
+        try:
+            # 吊销所有由此CA签发的证书
+            certificates = Certificate.query.filter_by(ca_id=ca_id).all()
+            for cert in certificates:
+                if cert.status == 'valid':
+                    cert.status = 'revoked'
+                    cert.revoked_at = datetime.now(timezone.utc)
+                    cert.revocation_reason = 'CA Compromise'
+                    cert.save()
+            
+            # 更新CA状态
+            ca.status = 'revoked'
+            ca.revoked_at = datetime.now(timezone.utc)
+            ca.revocation_reason = request.form.get('revocation_reason', 'Unspecified')
+            ca.save()
+            
+            flash('CA已成功吊销，所有由此CA签发的证书也已吊销', 'success')
+        except Exception as e:
+            flash(f'吊销CA失败：{str(e)}', 'danger')
+        
+        return redirect(url_for('main.ca_detail', ca_id=ca_id))
+
+    @main_bp.route('/ca/<int:ca_id>/activate', methods=['POST'])
+    @login_required
+    def activate_ca(ca_id):
+        """激活CA"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权激活该CA', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 检查CA是否已激活
+        if ca.status == 'active':
+            flash('CA已处于活跃状态', 'warning')
+            return redirect(url_for('main.ca_detail', ca_id=ca_id))
+        
+        try:
+            # 更新CA状态
+            ca.status = 'active'
+            # 清除吊销信息
+            ca.revoked_at = None
+            ca.revocation_reason = None
+            ca.save()
+            
+            flash('CA已成功激活', 'success')
+        except Exception as e:
+            flash(f'激活CA失败：{str(e)}', 'danger')
+        
+        return redirect(url_for('main.ca_detail', ca_id=ca_id))
+
+    @main_bp.route('/certificate/<int:cert_id>/download/certificate')
+    @login_required
+    def download_certificate(cert_id):
+        """下载证书文件"""
+        # 获取证书信息
+        cert = Certificate.query.get_or_404(cert_id)
+        
+        # 检查是否为当前用户的证书
+        if cert.user_id != current_user.id:
+            flash('无权下载该证书', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 创建响应对象
+        response = Response(cert.certificate, mimetype='application/x-pem-file')
+        response.headers['Content-Disposition'] = f'attachment; filename=certificate-{cert_id}.pem'
+        return response
+    
+    @main_bp.route('/certificate/<int:cert_id>/download/private_key')
+    @login_required
+    def download_private_key(cert_id):
+        """下载私钥文件"""
+        # 获取证书信息
+        cert = Certificate.query.get_or_404(cert_id)
+        
+        # 检查是否为当前用户的证书
+        if cert.user_id != current_user.id:
+            flash('无权下载该私钥', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 获取解密后的私钥
+        private_key = cert.get_private_key()
+        
+        # 创建响应对象
+        response = Response(private_key, mimetype='application/x-pem-file')
+        response.headers['Content-Disposition'] = f'attachment; filename=private-key-{cert_id}.pem'
+        return response
+    
+    @main_bp.route('/certificate/<int:cert_id>/download/pkcs12')
+    @login_required
+    def download_pkcs12(cert_id):
+        """下载PKCS#12格式的证书文件"""
+        # 获取证书信息
+        cert = Certificate.query.get_or_404(cert_id)
+        
+        # 检查是否为当前用户的证书
+        if cert.user_id != current_user.id:
+            flash('无权下载该证书', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        try:
+            # 设置日志
+            logging.basicConfig(level=logging.DEBUG)
+            logger = logging.getLogger(__name__)
+            
+            # 记录证书信息
+            logger.debug(f"Certificate ID: {cert_id}")
+            logger.debug(f"Certificate content: {cert.certificate[:100]}...")
+            
+            # 加载证书
+            certificate = x509.load_pem_x509_certificate(cert.certificate.encode())
+            logger.debug("Certificate loaded successfully")
+            
+            # 加载私钥
+            private_key_pem = cert.get_private_key()
+            logger.debug(f"Private key content: {private_key_pem[:100]}...")
+            private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+            logger.debug("Private key loaded successfully")
+            
+            # 创建PKCS#12数据
+            pkcs12_data = pkcs12.serialize_key_and_certificates(
+                name=b"certificate",
+                key=private_key,
+                cert=certificate,
+                cas=None,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+            logger.debug("PKCS#12 data created successfully")
+            
+            # 创建响应对象
+            response = Response(pkcs12_data, mimetype='application/x-pkcs12')
+            response.headers['Content-Disposition'] = f'attachment; filename=certificate-{cert_id}.p12'
+            logger.debug("Response created successfully")
+            return response
+        except Exception as e:
+            import traceback
+            error_msg = f'生成PKCS#12文件失败：{str(e)}\n{traceback.format_exc()}'
+            print(error_msg)  # 打印到控制台
+            logging.error(error_msg)  # 记录到日志
+            flash(f'生成PKCS#12文件失败：{str(e)}', 'danger')
+            return redirect(url_for('main.certificate_detail', cert_id=cert_id))
+    
+    @main_bp.route('/ca/<int:ca_id>/download/private_key')
+    @login_required
+    def download_ca_private_key(ca_id):
+        """下载CA私钥文件"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权下载该私钥', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 获取解密后的私钥
+        private_key = ca.get_private_key()
+        
+        # 创建响应对象
+        response = Response(private_key, mimetype='application/x-pem-file')
+        response.headers['Content-Disposition'] = f'attachment; filename=ca-private-key-{ca_id}.pem'
+        return response
+    
+    @main_bp.route('/acme-settings')
+    @login_required
+    def acme_settings():
+        """ACME集成设置页面"""
+        # 这里应该获取当前用户的特定ID
+        user_specific_id = current_user.id  # 实际应用中可能需要生成或使用特定的用户标识
+        return render_template('main/acme_settings.html', current_year=2024, user_specific_id=user_specific_id)
 
 # 这里需要导入main_bp，以便初始化路由
 # from app.main import main_bp

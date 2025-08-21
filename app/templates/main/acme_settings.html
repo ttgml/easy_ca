@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}ACME集成设置 - Easy CA{% endblock %}
+
+{% block content %}
+    <div class="acme-settings max-w-4xl mx-auto">
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">ACME集成设置</h2>
+            <p class="text-gray-600">配置您的ACME客户端以自动签发和续订证书</p>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800">快速开始指南</h3>
+                <p class="text-gray-600 mt-1">使用acme.sh客户端快速配置ACME集成</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">您的ACME目录URL</label>
+                    <div class="flex">
+                        <input type="text" 
+                               value="https://your-saas.com/acme/{{ user_specific_id }}" 
+                               readonly 
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50">
+                        <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-r-md hover:bg-gray-300 transition-colors flex items-center" 
+                                onclick="copyToClipboard('https://your-saas.com/acme/{{ user_specific_id }}')">
+                            <i class="fas fa-copy mr-2"></i>复制
+                        </button>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">使用此URL配置您的ACME客户端</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">acme.sh 使用示例</label>
+                    <div class="bg-gray-50 rounded-md p-4 relative">
+                        <button class="absolute top-2 right-2 px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors flex items-center text-sm" 
+                                onclick="copyToClipboard(`acme.sh --server https://your-saas.com/acme/{{ user_specific_id }} \\n        --issue -d example.com -d *.example.com \\
+        --dns dns_cf`)">
+                            <i class="fas fa-copy mr-1"></i>复制
+                        </button>
+                        <pre class="text-sm text-gray-800"><code>acme.sh --server https://your-saas.com/acme/{{ user_specific_id }} \
+        --issue -d example.com -d *.example.com \
+        --dns dns_cf # 假设使用Cloudflare DNS挑战</code></pre>
+                    </div>
+                </div>
+                
+                <div class="text-sm text-gray-600">
+                    <p class="mb-2"><strong>参数说明：</strong></p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><code>--server</code>: 指定ACME服务器目录URL</li>
+                        <li><code>--issue</code>: 请求签发证书</li>
+                        <li><code>-d</code>: 指定要签发证书的域名</li>
+                        <li><code>--dns</code>: 指定DNS挑战提供商</li>
+                    </ul>
+                    <p class="mt-3">了解更多关于 <a href="https://github.com/acmesh-official/acme.sh" target="_blank" class="text-blue-600 hover:underline">acme.sh</a> 的信息</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800">高级配置</h3>
+                <p class="text-gray-600 mt-1">手动配置ACME客户端</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <h4 class="font-medium text-gray-700 mb-2">目录端点</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">目录URL</label>
+                            <div class="flex">
+                                <input type="text" 
+                                       value="https://your-saas.com/acme/{{ user_specific_id }}/directory" 
+                                       readonly 
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm">
+                                <button class="px-3 py-2 bg-gray-200 text-gray-700 rounded-r-md hover:bg-gray-300 transition-colors flex items-center text-sm" 
+                                        onclick="copyToClipboard('https://your-saas.com/acme/{{ user_specific_id }}/directory')">
+                                    <i class="fas fa-copy mr-1"></i>复制
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">新账户URL</label>
+                            <div class="flex">
+                                <input type="text" 
+                                       value="https://your-saas.com/acme/{{ user_specific_id }}/new-account" 
+                                       readonly 
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50 text-sm">
+                                <button class="px-3 py-2 bg-gray-200 text-gray-700 rounded-r-md hover:bg-gray-300 transition-colors flex items-center text-sm" 
+                                        onclick="copyToClipboard('https://your-saas.com/acme/{{ user_specific_id }}/new-account')">
+                                    <i class="fas fa-copy mr-1"></i>复制
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h4 class="font-medium text-gray-700 mb-2">支持的挑战类型</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">HTTP-01</span>
+                        <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">DNS-01</span>
+                        <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">TLS-ALPN-01</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">证书配置</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">默认有效期</label>
+                            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option>90天</option>
+                                <option selected>30天</option>
+                                <option>7天</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">最大续订窗口</label>
+                            <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option>30天</option>
+                                <option selected>15天</option>
+                                <option>7天</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // 可以添加一个提示，表明已复制
+                console.log('已复制到剪贴板');
+            });
+        }
+    </script>
+{% endblock %}

@@ -1,25 +1,59 @@
 {% extends "base.html" %}
 
-{% block title %}首页 - Easy CA系统{% endblock %}
+{% block title %}首页 - Easy CA{% endblock %}
 
 {% block content %}
-    <section class="hero">
-        <h2>欢迎使用Easy CA系统</h2>
-        <p>这是一个基于Flask的应用系统，用于管理和生成证书。</p>
+    <section class="hero bg-gradient-to-r from-blue-500 to-purple-600 text-white py-20 rounded-lg mb-8">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">欢迎使用Easy CA</h1>
+            <p class="text-xl mb-8 max-w-2xl mx-auto">一个现代化的证书颁发机构管理系统，帮助您轻松创建、管理和部署SSL/TLS证书</p>
+            
+            <!-- 未登录用户显示的按钮 -->
+            {% if not current_user.is_authenticated %}
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+                <a href="{{ url_for('auth.login') }}" class="bg-white text-blue-600 hover:bg-gray-100 font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-sign-in-alt mr-2"></i>用户登录
+                </a>
+                <a href="{{ url_for('auth.register') }}" class="bg-transparent border-2 border-white text-white hover:bg-white hover:text-blue-600 font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-user-plus mr-2"></i>用户注册
+                </a>
+            </div>
+            {% endif %}
+        </div>
     </section>
     
-    <section class="features">
-        <div class="feature">
-            <h3>证书管理</h3>
-            <p>轻松管理您的证书，包括生成、更新和撤销。</p>
+    <section class="features grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="feature bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+            <div class="text-blue-500 text-3xl mb-4">
+                <i class="fas fa-certificate"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">证书管理</h3>
+            <p class="text-gray-600">轻松管理您的证书，包括生成、更新和撤销。</p>
         </div>
-        <div class="feature">
-            <h3>安全可靠</h3>
-            <p>采用高级加密技术，确保您的证书安全可靠。</p>
+        <div class="feature bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+            <div class="text-green-500 text-3xl mb-4">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">安全可靠</h3>
+            <p class="text-gray-600">采用高级加密技术，确保您的证书安全可靠。</p>
         </div>
-        <div class="feature">
-            <h3>易于使用</h3>
-            <p>直观的用户界面，让证书管理变得简单高效。</p>
+        <div class="feature bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+            <div class="text-purple-500 text-3xl mb-4">
+                <i class="fas fa-user-friends"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">易于使用</h3>
+            <p class="text-gray-600">直观的用户界面，让证书管理变得简单高效。</p>
         </div>
     </section>
+    
+    <!-- 已登录用户显示的内容 -->
+    {% if current_user.is_authenticated %}
+    <section class="dashboard-link bg-white p-6 rounded-lg shadow-md text-center">
+        <h2 class="text-2xl font-bold mb-4">欢迎回来, {{ current_user.username }}!</h2>
+        <p class="text-gray-600 mb-6">您已成功登录到Easy CA</p>
+        <a href="{{ url_for('main.dashboard') }}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105">
+            <i class="fas fa-tachometer-alt mr-2"></i>进入仪表盘
+        </a>
+    </section>
+    {% endif %}
 {% endblock %}

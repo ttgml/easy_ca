@@ -1,95 +1,213 @@
 {% extends "base.html" %}
 
-{% block title %}仪表盘 - Easy CA系统{% endblock %}
+{% block title %}仪表盘 - Easy CA{% endblock %}
 
 {% block content %}
     <div class="dashboard">
-        <h2>仪表盘</h2>
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-2xl font-bold text-gray-800">仪表盘</h2>
+            <!-- 主要操作按钮 -->
+            <a href="{{ url_for('main.new_certificate') }}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition-colors">
+                <i class="fas fa-plus mr-2"></i>
+                签发证书
+            </a>
+        </div>
         
-        <!-- 显示统计信息 -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>证书颁发机构</h3>
-                <p class="stat-value">{{ ca_count }}</p>
-                <a href="{{ url_for('main.new_ca') }}" class="stat-link">新建CA</a>
+        <!-- 顶部数据卡片 (KPI Cards) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-blue-100 p-3 mr-4">
+                        <i class="fas fa-building text-blue-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">总CA数量</p>
+                        <p class="text-2xl font-bold">{{ ca_count }}</p>
+                    </div>
+                </div>
             </div>
             
-            <div class="stat-card">
-                <h3>证书总数</h3>
-                <p class="stat-value">{{ cert_count }}</p>
-                <a href="{{ url_for('main.new_certificate') }}" class="stat-link">新建证书</a>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-green-100 p-3 mr-4">
+                        <i class="fas fa-certificate text-green-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">总证书数量</p>
+                        <p class="text-2xl font-bold">{{ cert_count }}</p>
+                    </div>
+                </div>
             </div>
             
-            <div class="stat-card">
-                <h3>有效证书</h3>
-                <p class="stat-value">{{ active_certs }}</p>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-yellow-100 p-3 mr-4">
+                        <i class="fas fa-exclamation-triangle text-yellow-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">即将过期证书</p>
+                        <p class="text-2xl font-bold">{{ expiring_certs }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-red-100 p-3 mr-4">
+                        <i class="fas fa-times-circle text-red-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">已吊销证书</p>
+                        <p class="text-2xl font-bold">{{ revoked_certs }}</p>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <!-- 最近的CA -->
-        <div class="recent-section">
-            <h3>最近的证书颁发机构</h3>
-            {% if recent_cas %}
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>名称</th>
-                            <th>通用名称</th>
-                            <th>创建时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for ca in recent_cas %}
-                            <tr>
-                                <td>{{ ca.name }}</td>
-                                <td>{{ ca.common_name }}</td>
-                                <td>{{ ca.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}" class="btn btn-sm">查看</a>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p class="empty-message">您还没有创建任何证书颁发机构。</p>
-            {% endif %}
+        <!-- 快速导航 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <a href="{{ url_for('main.new_ca') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-purple-100 p-3 mr-4">
+                        <i class="fas fa-plus-circle text-purple-600 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold">创建新的CA</h3>
+                </div>
+                <p class="text-gray-500 mt-2">创建一个新的证书颁发机构</p>
+            </a>
+            
+            <a href="#" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-indigo-100 p-3 mr-4">
+                        <i class="fas fa-list text-indigo-600 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold">所有CA</h3>
+                </div>
+                <p class="text-gray-500 mt-2">查看和管理所有证书颁发机构</p>
+            </a>
+            
+            <a href="#" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-teal-100 p-3 mr-4">
+                        <i class="fas fa-certificate text-teal-600 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold">所有证书</h3>
+                </div>
+                <p class="text-gray-500 mt-2">查看和管理所有证书</p>
+            </a>
+            
+            <a href="{{ url_for('main.acme_settings') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                <div class="flex items-center">
+                    <div class="rounded-full bg-orange-100 p-3 mr-4">
+                        <i class="fas fa-key text-orange-600 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold">ACME设置</h3>
+                </div>
+                <p class="text-gray-500 mt-2">配置ACME自动证书管理</p>
+            </a>
         </div>
         
-        <!-- 最近的证书 -->
-        <div class="recent-section">
-            <h3>最近的证书</h3>
-            {% if recent_certs %}
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>通用名称</th>
-                            <th>颁发机构</th>
-                            <th>状态</th>
-                            <th>创建时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cert in recent_certs %}
-                            <tr>
-                                <td>{{ cert.common_name }}</td>
-                                <td>{{ cert.ca.name }}</td>
-                                <td>
-                                    <span class="status-{{ cert.status }}">{{ cert.status | capitalize }}</span>
-                                </td>
-                                <td>{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" class="btn btn-sm">查看</a>
-                                </td>
-                            </tr>
+        <!-- 最近活动列表 -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-semibold">最近活动</h3>
+            </div>
+            <div class="p-6">
+                {% if recent_activities %}
+                    <ul class="space-y-4">
+                        {% for activity in recent_activities %}
+                            <li class="flex items-start">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="rounded-full bg-gray-100 p-2">
+                                        <i class="fas fa-circle text-gray-400 text-xs"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-gray-800">{{ activity.description }}</p>
+                                    <p class="text-gray-500 text-sm">{{ activity.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                </div>
+                            </li>
                         {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p class="empty-message">您还没有创建任何证书。</p>
-            {% endif %}
+                    </ul>
+                {% else %}
+                    <p class="text-gray-500 text-center py-4">暂无活动记录</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 最近的CA和证书 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 最近的CA -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold">最近的证书颁发机构</h3>
+                </div>
+                <div class="p-6">
+                    {% if recent_cas %}
+                        <div class="space-y-4">
+                            {% for ca in recent_cas %}
+                                <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div>
+                                        <h4 class="font-medium">{{ ca.name }}</h4>
+                                        <p class="text-gray-500 text-sm">{{ ca.common_name }}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">{{ ca.status }}</span>
+                                        <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-building text-gray-300 text-3xl mb-2"></i>
+                            <p class="text-gray-500">您还没有创建任何证书颁发机构</p>
+                            <a href="{{ url_for('main.new_ca') }}" class="mt-4 inline-block text-blue-600 hover:text-blue-800 font-medium">创建您的第一个CA</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 最近的证书 -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold">最近的证书</h3>
+                </div>
+                <div class="p-6">
+                    {% if recent_certs %}
+                        <div class="space-y-4">
+                            {% for cert in recent_certs %}
+                                <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div>
+                                        <h4 class="font-medium">{{ cert.common_name }}</h4>
+                                        <p class="text-gray-500 text-sm">{{ cert.ca.name }}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        {% if cert.status == 'valid' %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">有效</span>
+                                        {% elif cert.status == 'expired' %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">已过期</span>
+                                        {% elif cert.status == 'revoked' %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">已吊销</span>
+                                        {% endif %}
+                                        <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-8">
+                            <i class="fas fa-certificate text-gray-300 text-3xl mb-2"></i>
+                            <p class="text-gray-500">您还没有创建任何证书</p>
+                            <a href="{{ url_for('main.new_certificate') }}" class="mt-4 inline-block text-blue-600 hover:text-blue-800 font-medium">签发您的第一张证书</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 {% endblock %}

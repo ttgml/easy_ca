@@ -1,95 +1,247 @@
 {% extends "base.html" %}
 
-{% block title %}{{ ca.name }} - CA详情 - Easy CA系统{% endblock %}
+{% block title %}{{ ca.name }} - CA详情 - Easy CA{% endblock %}
 
 {% block content %}
-    <div class="ca-detail">
-        <h2>{{ ca.name }} - 证书颁发机构详情</h2>
+    <div class="ca-detail max-w-4xl mx-auto">
+        <!-- 状态横幅 -->
+        {% if ca.status == 'active' %}
+            <div class="bg-green-100 border-l-4 border-green-500 p-4 mb-6">
+                <div class="flex items-center">
+                    <i class="fas fa-check-circle text-green-600 text-xl mr-3"></i>
+                    <div>
+                        <p class="font-medium text-green-800">CA处于活跃状态</p>
+                        <p class="text-green-700">此CA当前处于活跃状态，可以用于签发证书。</p>
+                    </div>
+                </div>
+            </div>
+        {% elif ca.status == 'revoked' %}
+            <div class="bg-red-100 border-l-4 border-red-500 p-4 mb-6">
+                <div class="flex items-center">
+                    <i class="fas fa-times-circle text-red-600 text-xl mr-3"></i>
+                    <div>
+                        <p class="font-medium text-red-800">CA已吊销</p>
+                        <p class="text-red-700">此CA已被吊销，吊销原因：{{ ca.revocation_reason }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
         
-        <!-- CA基本信息 -->
-        <div class="info-section">
-            <h3>基本信息</h3>
-            <div class="info-grid">
-                <div class="info-item">
-                    <label>通用名称:</label>
-                    <span>{{ ca.common_name }}</span>
-                </div>
-                <div class="info-item">
-                    <label>组织名称:</label>
-                    <span>{{ ca.organization or '未设置' }}</span>
-                </div>
-                <div class="info-item">
-                    <label>有效期:</label>
-                    <span>{{ ca.validity_years }}年</span>
-                </div>
-                <div class="info-item">
-                    <label>密钥类型:</label>
-                    <span>{{ ca.key_type }}</span>
-                </div>
-                <div class="info-item">
-                    <label>密钥大小:</label>
-                    <span>{{ ca.key_size }}位</span>
-                </div>
-                <div class="info-item">
-                    <label>状态:</label>
-                    <span class="status-{{ ca.status }}">{{ ca.status | capitalize }}</span>
-                </div>
-                <div class="info-item">
-                    <label>创建时间:</label>
-                    <span>{{ ca.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">{{ ca.name }}</h2>
+            <p class="text-gray-600">CA详情</p>
+        </div>
+        
+        <!-- 基本信息卡片 -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="border-b border-gray-200 p-6">
+                <h3 class="text-lg font-semibold">基本信息</h3>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">名称</h4>
+                        <p class="font-medium">{{ ca.name }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">通用名称 (CN)</h4>
+                        <p class="font-medium">{{ ca.common_name }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">组织名称 (O)</h4>
+                        <p class="font-medium">{{ ca.organization or '未设置' }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">组织单位 (OU)</h4>
+                        <p class="font-medium">{{ ca.organizational_unit or 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">国家 (C)</h4>
+                        <p class="font-medium">{{ ca.country or 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">省/州 (ST)</h4>
+                        <p class="font-medium">{{ ca.state or 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">城市 (L)</h4>
+                        <p class="font-medium">{{ ca.locality or 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">序列号</h4>
+                        <p class="font-medium">{{ ca.serial_number }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">有效期开始</h4>
+                        <p class="font-medium">{{ ca.valid_from.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">有效期结束</h4>
+                        <p class="font-medium">{{ ca.valid_to.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">创建时间</h4>
+                        <p class="font-medium">{{ ca.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    </div>
+                    {% if ca.status == 'revoked' %}
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">吊销时间</h4>
+                        <p class="font-medium">{{ ca.revoked_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 mb-2">吊销原因</h4>
+                        <p class="font-medium">{{ ca.revocation_reason }}</p>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
         
         <!-- CA证书内容 -->
-        <div class="certificate-section">
-            <h3>CA证书 (PEM格式)</h3>
-            <div class="certificate-content">
-                <pre>{{ ca.certificate }}</pre>
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="border-b border-gray-200 p-6 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">CA证书 (PEM格式)</h3>
+                <button class="text-blue-600 hover:text-blue-800 flex items-center" onclick="copyToClipboard('ca-certificate-content')">
+                    <i class="fas fa-copy mr-1"></i>复制
+                </button>
             </div>
-            <div class="certificate-actions">
-                <form action="" method="POST">
-                    <button type="submit" class="btn btn-primary">下载证书</button>
+            <div class="p-6 bg-gray-800 text-green-400 overflow-x-auto">
+                <pre id="ca-certificate-content" class="text-sm">{{ ca.certificate }}</pre>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex space-x-3">
+                <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
+                    <i class="fas fa-download mr-2"></i>下载CA证书
+                </button>
+                <a href="{{ url_for('main.download_ca_private_key', ca_id=ca.id) }}" 
+                   class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center">
+                    <i class="fas fa-key mr-2"></i>下载CA私钥
+                </a>
+            </div>
+        </div>
+        
+        <!-- 由此CA颁发的证书 -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="border-b border-gray-200 p-6 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">由此CA颁发的证书</h3>
+                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">{{ certificates|length }} 个证书</span>
+            </div>
+            <div class="p-6">
+                {% if certificates %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {% for cert in certificates %}
+                        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div class="flex justify-between items-start mb-2">
+                                <h4 class="font-medium text-gray-900 truncate">{{ cert.common_name }}</h4>
+                                {% if cert.status == 'valid' %}
+                                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">有效</span>
+                                {% elif cert.status == 'expired' %}
+                                    <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">已过期</span>
+                                {% elif cert.status == 'revoked' %}
+                                    <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">已吊销</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-sm text-gray-500 mb-3">{{ cert.created_at.strftime('%Y-%m-%d') }}</p>
+                            <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" 
+                               class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+                                查看详情
+                                <i class="fas fa-arrow-right ml-1 text-xs"></i>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-8">
+                        <i class="fas fa-certificate text-gray-300 text-4xl mb-3"></i>
+                        <p class="text-gray-500">此CA尚未颁发任何证书</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 操作区 -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="border-b border-gray-200 p-6">
+                <h3 class="text-lg font-semibold">操作</h3>
+            </div>
+            <div class="p-6">
+                <div class="flex flex-wrap gap-3">
+                    {% if ca.status == 'active' %}
+                    <a href="{{ url_for('main.new_certificate', ca_id=ca.id) }}" 
+                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
+                        <i class="fas fa-plus-circle mr-2"></i>签发新证书
+                    </a>
+                    <button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center" 
+                            onclick="document.getElementById('revoke-ca-modal').classList.remove('hidden')">
+                        <i class="fas fa-times-circle mr-2"></i>吊销此CA
+                    </button>
+                    {% elif ca.status == 'revoked' %}
+                    <form action="{{ url_for('main.activate_ca', ca_id=ca.id) }}" method="POST">
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center">
+                            <i class="fas fa-check-circle mr-2"></i>激活此CA
+                        </button>
+                    </form>
+                    {% endif %}
+                    <a href="{{ url_for('main.dashboard') }}" 
+                       class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors flex items-center">
+                        <i class="fas fa-arrow-left mr-2"></i>返回仪表盘
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 吊销CA模态框 -->
+    {% if ca.status == 'active' %}
+    <div id="revoke-ca-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">吊销CA</h3>
+                    <button onclick="document.getElementById('revoke-ca-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <p class="text-gray-600 mb-4">您确定要吊销此CA吗？此操作将吊销所有由此CA颁发的证书，并且不可撤销。</p>
+                <form action="{{ url_for('main.revoke_ca', ca_id=ca.id) }}" method="POST">
+                    <div class="mb-4">
+                        <label for="revocation_reason" class="block text-sm font-medium text-gray-700 mb-2">吊销原因</label>
+                        <select id="revocation_reason" name="revocation_reason" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="Unspecified">未指定</option>
+                            <option value="Key Compromise">密钥泄露</option>
+                            <option value="CA Compromise">CA泄露</option>
+                            <option value="Superseded">证书已被取代</option>
+                            <option value="Cessation of Operation">操作终止</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="document.getElementById('revoke-ca-modal').classList.add('hidden')" 
+                                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                            取消
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                            确认吊销
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
-        
-        <!-- 由该CA签发的证书 -->
-        <div class="certificates-section">
-            <h3>由该CA签发的证书</h3>
-            {% if certificates %}
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>通用名称</th>
-                            <th>状态</th>
-                            <th>创建时间</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cert in certificates %}
-                            <tr>
-                                <td>{{ cert.common_name }}</td>
-                                <td>
-                                    <span class="status-{{ cert.status }}">{{ cert.status | capitalize }}</span>
-                                </td>
-                                <td>{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" class="btn btn-sm">查看</a>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p class="empty-message">该CA尚未签发任何证书。</p>
-            {% endif %}
-        </div>
-        
-        <div class="page-actions">
-            <a href="{{ url_for('main.new_certificate') }}" class="btn btn-primary">使用此CA签发证书</a>
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">返回仪表盘</a>
-        </div>
     </div>
+    {% endif %}
+    
+    <script>
+        // 复制到剪贴板功能
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                // 显示复制成功的提示
+                const originalText = event.target.innerHTML;
+                event.target.innerHTML = '<i class="fas fa-check mr-1"></i>已复制';
+                setTimeout(() => {
+                    event.target.innerHTML = originalText;
+                }, 2000);
+            });
+        }
+    </script>
 {% endblock %}
