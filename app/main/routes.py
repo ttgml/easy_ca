@@ -37,6 +37,18 @@ def init_routes(main_bp):
         cert_count = Certificate.query.filter_by(user_id=current_user.id).count()
         active_certs = Certificate.query.filter_by(user_id=current_user.id, status='valid').count()
         
+        # 获取即将过期的证书数量（30天内过期）
+        from datetime import datetime, timedelta, timezone
+        expiring_threshold = datetime.now(timezone.utc) + timedelta(days=30)
+        expiring_certs = Certificate.query.filter(
+            Certificate.user_id == current_user.id,
+            Certificate.status == 'valid',
+            Certificate.valid_to <= expiring_threshold
+        ).count()
+        
+        # 获取已吊销的证书数量
+        revoked_certs = Certificate.query.filter_by(user_id=current_user.id, status='revoked').count()
+        
         # 获取最近的CA和证书
         recent_cas = CertificateAuthority.query.filter_by(user_id=current_user.id).order_by(CertificateAuthority.created_at.desc()).limit(5).all()
         recent_certs = Certificate.query.filter_by(user_id=current_user.id).order_by(Certificate.created_at.desc()).limit(5).all()
@@ -45,7 +57,9 @@ def init_routes(main_bp):
                              current_year=2024, 
                              ca_count=ca_count, 
                              cert_count=cert_count, 
-                             active_certs=active_certs, 
+                             active_certs=active_certs,
+                             expiring_certs=expiring_certs,
+                             revoked_certs=revoked_certs,
                              recent_cas=recent_cas, 
                              recent_certs=recent_certs)
     
@@ -257,9 +271,6 @@ def init_routes(main_bp):
                     public_exponent=65537,
                     key_size=2048,
                 )
-                # 确保ca_private_key是正确的类型
-                if not isinstance(ca_private_key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey)):
-                    raise ValueError("CA私钥类型不正确")
                 
                 # 解析CA私钥
                 ca_private_key_pem = ca.get_private_key()
@@ -267,6 +278,10 @@ def init_routes(main_bp):
                     ca_private_key_pem.encode(),
                     password=None
                 )
+                
+                # 确保ca_private_key是正确的类型
+                if not isinstance(ca_private_key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey)):
+                    raise ValueError("CA私钥类型不正确")
                 
                 # 解析CA证书
                 ca_cert_pem = ca.certificate
@@ -370,7 +385,44 @@ def init_routes(main_bp):
         # 获取CA信息
         ca = CertificateAuthority.query.get_or_404(cert.ca_id)
         
-        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca)
+        # 解析证书信息
+        try:
+            # 加载证书
+            certificate = x509.load_pem_x509_certificate(cert.certificate.encode())
+            
+            # 获取Issuer信息
+            issuer = certificate.issuer
+            
+            # 获取Subject信息
+            subject = certificate.subject
+            
+            # 获取Extensions信息
+            extensions = certificate.extensions
+            
+            # 格式化Issuer信息
+            issuer_str = ''
+            for attr in issuer:
+                oid_name = attr.oid._name if hasattr(attr.oid, '_name') else str(attr.oid)
+                issuer_str += f'{oid_name}: {attr.value}\n'
+            
+            # 格式化Subject信息
+            subject_str = ''
+            for attr in subject:
+                oid_name = attr.oid._name if hasattr(attr.oid, '_name') else str(attr.oid)
+                subject_str += f'{oid_name}: {attr.value}\n'
+            
+            # 格式化Extensions信息
+            extensions_str = ''
+            for ext in extensions:
+                oid_name = ext.oid._name if hasattr(ext.oid, '_name') else str(ext.oid)
+                extensions_str += f'{oid_name}: {ext.value}\n'
+        except Exception as e:
+            # 如果解析失败，使用原始证书内容
+            issuer_str = cert.certificate
+            subject_str = cert.certificate
+            extensions_str = str(e)
+        
+        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca, issuer_str=issuer_str, subject_str=subject_str, extensions_str=extensions_str)
     
     @main_bp.route('/certificate/<int:cert_id>/revoke', methods=['POST'])
     @login_required
@@ -541,13 +593,18 @@ def init_routes(main_bp):
             logger.debug("Private key loaded successfully")
             
             # 创建PKCS#12数据
-            pkcs12_data = pkcs12.serialize_key_and_certificates(
-                name=b"certificate",
-                key=private_key,
-                cert=certificate,
-                cas=None,
-                encryption_algorithm=serialization.NoEncryption()
-            )
+            # 确保private_key是正确的类型
+            from cryptography.hazmat.primitives.asymmetric import rsa, ec, dsa, ed25519, ed448
+            if isinstance(private_key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey, dsa.DSAPrivateKey, ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
+                pkcs12_data = pkcs12.serialize_key_and_certificates(
+                    name=b"certificate",
+                    key=private_key,
+                    cert=certificate,
+                    cas=None,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+            else:
+                raise ValueError("私钥类型不支持PKCS#12序列化")
             logger.debug("PKCS#12 data created successfully")
             
             # 创建响应对象
@@ -590,6 +647,22 @@ def init_routes(main_bp):
         # 这里应该获取当前用户的特定ID
         user_specific_id = current_user.id  # 实际应用中可能需要生成或使用特定的用户标识
         return render_template('main/acme_settings.html', current_year=2024, user_specific_id=user_specific_id)
+    
+    @main_bp.route('/cas')
+    @login_required
+    def ca_list():
+        """CA列表页面"""
+        # 获取当前用户的所有CA
+        cas = CertificateAuthority.query.filter_by(user_id=current_user.id).order_by(CertificateAuthority.created_at.desc()).all()
+        return render_template('main/ca_list.html', current_year=2024, cas=cas)
+    
+    @main_bp.route('/certificates')
+    @login_required
+    def certificate_list():
+        """证书列表页面"""
+        # 获取当前用户的所有证书
+        certificates = Certificate.query.filter_by(user_id=current_user.id).order_by(Certificate.created_at.desc()).all()
+        return render_template('main/certificate_list.html', current_year=2024, certificates=certificates)
 
 # 这里需要导入main_bp，以便初始化路由
 # from app.main import main_bp

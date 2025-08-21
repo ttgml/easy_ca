@@ -76,7 +76,7 @@
                 <p class="text-gray-500 mt-2">创建一个新的证书颁发机构</p>
             </a>
             
-            <a href="#" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+            <a href="{{ url_for('main.ca_list') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
                     <div class="rounded-full bg-indigo-100 p-3 mr-4">
                         <i class="fas fa-list text-indigo-600 text-xl"></i>
@@ -86,7 +86,7 @@
                 <p class="text-gray-500 mt-2">查看和管理所有证书颁发机构</p>
             </a>
             
-            <a href="#" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+            <a href="{{ url_for('main.certificate_list') }}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
                     <div class="rounded-full bg-teal-100 p-3 mr-4">
                         <i class="fas fa-certificate text-teal-600 text-xl"></i>
@@ -152,7 +152,13 @@
                                         <p class="text-gray-500 text-sm">{{ ca.common_name }}</p>
                                     </div>
                                     <div class="flex items-center space-x-2">
-                                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">{{ ca.status }}</span>
+                                        {% if ca.status == 'active' %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">活跃</span>
+                                        {% elif ca.status == 'revoked' %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">已吊销</span>
+                                        {% else %}
+                                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">{{ ca.status }}</span>
+                                        {% endif %}
                                         <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}" class="text-blue-600 hover:text-blue-800">
                                             <i class="fas fa-arrow-right"></i>
                                         </a>
