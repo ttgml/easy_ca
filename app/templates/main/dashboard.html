@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <div class="dashboard">
+        <h2>仪表盘</h2>
+        
+        <!-- 显示统计信息 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>证书颁发机构</h3>
+                <p class="stat-value">{{ ca_count }}</p>
+                <a href="{{ url_for('main.new_ca') }}" class="stat-link">新建CA</a>
+            </div>
+            
+            <div class="stat-card">
+                <h3>证书总数</h3>
+                <p class="stat-value">{{ cert_count }}</p>
+                <a href="{{ url_for('main.new_certificate') }}" class="stat-link">新建证书</a>
+            </div>
+            
+            <div class="stat-card">
+                <h3>有效证书</h3>
+                <p class="stat-value">{{ active_certs }}</p>
+            </div>
+        </div>
+        
+        <!-- 最近的CA -->
+        <div class="recent-section">
+            <h3>最近的证书颁发机构</h3>
+            {% if recent_cas %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>通用名称</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ca in recent_cas %}
+                            <tr>
+                                <td>{{ ca.name }}</td>
+                                <td>{{ ca.common_name }}</td>
+                                <td>{{ ca.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}" class="btn btn-sm">查看</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty-message">您还没有创建任何证书颁发机构。</p>
+            {% endif %}
+        </div>
+        
+        <!-- 最近的证书 -->
+        <div class="recent-section">
+            <h3>最近的证书</h3>
+            {% if recent_certs %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>通用名称</th>
+                            <th>颁发机构</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cert in recent_certs %}
+                            <tr>
+                                <td>{{ cert.common_name }}</td>
+                                <td>{{ cert.ca.name }}</td>
+                                <td>
+                                    <span class="status-{{ cert.status }}">{{ cert.status | capitalize }}</span>
+                                </td>
+                                <td>{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" class="btn btn-sm">查看</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty-message">您还没有创建任何证书。</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

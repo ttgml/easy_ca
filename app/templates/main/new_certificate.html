@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}新建证书 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <div class="form-container">
+        <h2>新建证书</h2>
+        
+        <!-- 显示消息 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="{{ url_for('main.new_certificate') }}">
+            <div class="form-group">
+                <label for="ca_id">选择证书颁发机构</label>
+                <select id="ca_id" name="ca_id" required>
+                    {% if cas %}
+                        {% for ca in cas %}
+                            <option value="{{ ca.id }}">{{ ca.name }} ({{ ca.common_name }})</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="">无可用证书颁发机构，请先创建CA</option>
+                    {% endif %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="common_name">通用名称 (CN)</label>
+                <input type="text" id="common_name" name="common_name" required placeholder="例如：www.example.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="sans">主题备用名称 (可选，每行一个)</label>
+                <textarea id="sans" name="sans" rows="5" placeholder="例如：
+example.com
+api.example.com
+test.example.com"></textarea>
+                <small class="form-hint">输入多个域名时，请每行输入一个域名</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="validity_days">有效期 (天数)</label>
+                <select id="validity_days" name="validity_days">
+                    <option value="90">90天</option>
+                    <option value="180">180天</option>
+                    <option value="365" selected>365天</option>
+                    <option value="730">730天</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">创建证书</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">取消</a>
+        </form>
+    </div>
+{% endblock %}

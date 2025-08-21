@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}新建证书颁发机构 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <div class="form-container">
+        <h2>新建证书颁发机构</h2>
+        
+        <!-- 显示消息 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="{{ url_for('main.new_ca') }}">
+            <div class="form-group">
+                <label for="name">CA名称</label>
+                <input type="text" id="name" name="name" required placeholder="例如：我的公司根CA">
+            </div>
+            
+            <div class="form-group">
+                <label for="common_name">通用名称 (CN)</label>
+                <input type="text" id="common_name" name="common_name" required placeholder="例如：mycompany.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="organization">组织名称 (可选)</label>
+                <input type="text" id="organization" name="organization" placeholder="例如：我的公司名称">
+            </div>
+            
+            <div class="form-group">
+                <label for="validity_years">有效期 (年)</label>
+                <select id="validity_years" name="validity_years">
+                    <option value="1">1年</option>
+                    <option value="3">3年</option>
+                    <option value="5" selected>5年</option>
+                    <option value="10">10年</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="key_type">密钥类型</label>
+                <select id="key_type" name="key_type">
+                    <option value="RSA" selected>RSA</option>
+                    <option value="ECC">ECC</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="key_size">密钥大小</label>
+                <select id="key_size" name="key_size">
+                    <option value="2048" selected>2048位 (RSA)</option>
+                    <option value="4096">4096位 (RSA)</option>
+                    <option value="256">256位 (ECC)</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">创建CA</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">取消</a>
+        </form>
+    </div>
+{% endblock %}

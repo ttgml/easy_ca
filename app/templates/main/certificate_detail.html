@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cert.common_name }} - 证书详情 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <div class="certificate-detail">
+        <h2>{{ cert.common_name }} - 证书详情</h2>
+        
+        <!-- 证书基本信息 -->
+        <div class="info-section">
+            <h3>基本信息</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>通用名称:</label>
+                    <span>{{ cert.common_name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>序列号:</label>
+                    <span>{{ cert.serial_number }}</span>
+                </div>
+                <div class="info-item">
+                    <label>颁发机构:</label>
+                    <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}">{{ ca.name }}</a>
+                </div>
+                <div class="info-item">
+                    <label>状态:</label>
+                    <span class="status-{{ cert.status }}">{{ cert.status | capitalize }}</span>
+                </div>
+                <div class="info-item">
+                    <label>有效期开始:</label>
+                    <span>{{ cert.valid_from.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                <div class="info-item">
+                    <label>有效期结束:</label>
+                    <span>{{ cert.valid_to.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                <div class="info-item">
+                    <label>创建时间:</label>
+                    <span>{{ cert.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                {% if cert.status == 'revoked' %}
+                <div class="info-item">
+                    <label>吊销时间:</label>
+                    <span>{{ cert.revoked_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+                <div class="info-item">
+                    <label>吊销原因:</label>
+                    <span>{{ cert.revocation_reason }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 主题备用名称 -->
+        {% if cert.get_sans() %}
+        <div class="sans-section">
+            <h3>主题备用名称</h3>
+            <ul class="sans-list">
+                {% for san in cert.get_sans() %}
+                <li>{{ san }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <!-- 证书内容 -->
+        <div class="certificate-section">
+            <h3>证书 (PEM格式)</h3>
+            <div class="certificate-content">
+                <pre>{{ cert.certificate }}</pre>
+            </div>
+            <div class="certificate-actions">
+                <form action="" method="POST">
+                    <button type="submit" class="btn btn-primary">下载证书</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="page-actions">
+            {% if cert.status == 'valid' %}
+            <form action="{{ url_for('main.revoke_certificate', cert_id=cert.id) }}" method="POST" class="inline-form">
+                <div class="form-group">
+                    <label for="revocation_reason">吊销原因</label>
+                    <select id="revocation_reason" name="revocation_reason">
+                        <option value="Unspecified">未指定</option>
+                        <option value="Key Compromise">密钥泄露</option>
+                        <option value="CA Compromise">CA泄露</option>
+                        <option value="Superseded">证书已被取代</option>
+                        <option value="Cessation of Operation">操作终止</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-danger">吊销证书</button>
+            </form>
+            {% endif %}
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">返回仪表盘</a>
+        </div>
+    </div>
+{% endblock %}

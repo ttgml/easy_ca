@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ca.name }} - CA详情 - Easy CA系统{% endblock %}
+
+{% block content %}
+    <div class="ca-detail">
+        <h2>{{ ca.name }} - 证书颁发机构详情</h2>
+        
+        <!-- CA基本信息 -->
+        <div class="info-section">
+            <h3>基本信息</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>通用名称:</label>
+                    <span>{{ ca.common_name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>组织名称:</label>
+                    <span>{{ ca.organization or '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                    <label>有效期:</label>
+                    <span>{{ ca.validity_years }}年</span>
+                </div>
+                <div class="info-item">
+                    <label>密钥类型:</label>
+                    <span>{{ ca.key_type }}</span>
+                </div>
+                <div class="info-item">
+                    <label>密钥大小:</label>
+                    <span>{{ ca.key_size }}位</span>
+                </div>
+                <div class="info-item">
+                    <label>状态:</label>
+                    <span class="status-{{ ca.status }}">{{ ca.status | capitalize }}</span>
+                </div>
+                <div class="info-item">
+                    <label>创建时间:</label>
+                    <span>{{ ca.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CA证书内容 -->
+        <div class="certificate-section">
+            <h3>CA证书 (PEM格式)</h3>
+            <div class="certificate-content">
+                <pre>{{ ca.certificate }}</pre>
+            </div>
+            <div class="certificate-actions">
+                <form action="" method="POST">
+                    <button type="submit" class="btn btn-primary">下载证书</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 由该CA签发的证书 -->
+        <div class="certificates-section">
+            <h3>由该CA签发的证书</h3>
+            {% if certificates %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>通用名称</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cert in certificates %}
+                            <tr>
+                                <td>{{ cert.common_name }}</td>
+                                <td>
+                                    <span class="status-{{ cert.status }}">{{ cert.status | capitalize }}</span>
+                                </td>
+                                <td>{{ cert.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <a href="{{ url_for('main.certificate_detail', cert_id=cert.id) }}" class="btn btn-sm">查看</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty-message">该CA尚未签发任何证书。</p>
+            {% endif %}
+        </div>
+        
+        <div class="page-actions">
+            <a href="{{ url_for('main.new_certificate') }}" class="btn btn-primary">使用此CA签发证书</a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">返回仪表盘</a>
+        </div>
+    </div>
+{% endblock %}
