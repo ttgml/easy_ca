@@ -115,6 +115,16 @@ class CertificateAuthority(BaseModel):
     revoked_at = db.Column(db.DateTime)
     revocation_reason = db.Column(db.String(255))
     
+    # ACME settings
+    acme_enabled = db.Column(db.Boolean, default=False)
+    auto_approve = db.Column(db.Boolean, default=False)
+    http01_enabled = db.Column(db.Boolean, default=True)
+    dns01_enabled = db.Column(db.Boolean, default=False)
+    
+    # CRL settings
+    crl_enabled = db.Column(db.Boolean, default=False)
+    crl_validity_days = db.Column(db.Integer, default=30)
+    
     def set_private_key(self, private_key):
         """加密并存储私钥"""
         # 确保私钥是字节串
@@ -155,6 +165,9 @@ class Certificate(BaseModel):
     valid_to = db.Column(db.DateTime, nullable=False)
     revoked_at = db.Column(db.DateTime)
     revocation_reason = db.Column(db.String(255))
+    
+    # 是否为CA证书
+    is_ca = db.Column(db.Boolean, default=False)
     
     # 关系：证书由哪个CA签发
     ca = db.relationship('CertificateAuthority', backref='certificates')

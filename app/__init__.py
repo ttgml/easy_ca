@@ -50,4 +50,8 @@ def create_app(config_name=None):
     from app.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')
     
+    # 注册ACME蓝图
+    from app.acme import acme_bp
+    app.register_blueprint(acme_bp, url_prefix='/acme')
+    
     return app

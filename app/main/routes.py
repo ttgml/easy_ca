@@ -190,15 +190,16 @@ def init_routes(main_bp):
                     country=country,                          # 国家 (C)
                     state=state,                              # 省/州 (ST)
                     locality=locality,                        # 城市 (L)
-                    serial_number=serial_number,              # 序列号
-                    validity_years=validity_years,
+                    serial_number=serial_number,
                     valid_from=valid_from,
                     valid_to=valid_to,
-                    key_type=key_type,
-                    key_size=key_size,
                     certificate=certificate_pem,
                     user_id=current_user.id
                 )
+                # 设置CA的其他属性
+                new_ca.validity_years = validity_years
+                new_ca.key_type = key_type
+                new_ca.key_size = key_size
                 
                 # 加密存储私钥
                 new_ca.set_private_key(private_key_pem)
@@ -230,6 +231,54 @@ def init_routes(main_bp):
         certificates = Certificate.query.filter_by(ca_id=ca_id).all()
         
         return render_template('main/ca_detail.html', current_year=2024, ca=ca, certificates=certificates)
+    
+    @main_bp.route('/ca/<int:ca_id>/settings')
+    @login_required
+    def ca_settings(ca_id):
+        """CA设置页面"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权访问该CA设置', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        return render_template('main/ca_settings.html', current_year=2024, ca=ca)
+    
+    @main_bp.route('/ca/<int:ca_id>/settings', methods=['POST'])
+    @login_required
+    def save_ca_settings(ca_id):
+        """保存CA设置"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权修改该CA设置', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        try:
+            # 更新ACME设置
+            ca.acme_enabled = request.form.get('acme_enabled') == 'on'
+            ca.auto_approve = request.form.get('auto_approve') == 'on'
+            ca.http01_enabled = request.form.get('http01_enabled') == 'on'
+            ca.dns01_enabled = request.form.get('dns01_enabled') == 'on'
+            
+            # 更新CRL设置
+            ca.crl_enabled = request.form.get('crl_enabled') == 'on'
+            crl_validity_days = request.form.get('crl_validity_days', type=int)
+            if crl_validity_days:
+                ca.crl_validity_days = crl_validity_days
+            
+            # 保存到数据库
+            ca.save()
+            
+            flash('CA设置已保存', 'success')
+        except Exception as e:
+            flash(f'保存CA设置失败：{str(e)}', 'danger')
+        
+        return redirect(url_for('main.ca_settings', ca_id=ca_id))
     
     @main_bp.route('/certificate/new', methods=['GET', 'POST'])
     @login_required
@@ -312,6 +361,9 @@ def init_routes(main_bp):
                         x509.BasicConstraints(ca=False, path_length=None), critical=True,
                     )
                 )
+                
+                # 提取证书序列号
+                serial_number = str(cert_builder.serial_number)
                 
                 # 添加SANs扩展（如果有）
                 if sans:
@@ -422,7 +474,10 @@ def init_routes(main_bp):
             subject_str = cert.certificate
             extensions_str = str(e)
         
-        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca, issuer_str=issuer_str, subject_str=subject_str, extensions_str=extensions_str)
+        # 检查证书是否为CA证书，以决定是否显示ACME指南
+        show_acme_guide = cert.is_ca if cert else False
+        
+        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca, issuer_str=issuer_str, subject_str=subject_str, extensions_str=extensions_str, show_acme_guide=show_acme_guide)
     
     @main_bp.route('/certificate/<int:cert_id>/revoke', methods=['POST'])
     @login_required

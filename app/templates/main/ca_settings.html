@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ca.name }} - CA设置 - Easy CA{% endblock %}
+
+{% block content %}
+    <div class="ca-settings max-w-4xl mx-auto">
+        <!-- Flash消息 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6">
+                    {% for category, message in messages %}
+                        <div class="rounded-lg px-4 py-3 mb-2 text-sm {% if category == 'success' %}bg-green-100 text-green-800 border border-green-200{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-200{% elif category == 'warning' %}bg-yellow-100 text-yellow-800 border border-yellow-200{% else %}bg-blue-100 text-blue-800 border border-blue-200{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">{{ ca.name }} - CA设置</h2>
+            <p class="text-gray-600">配置此CA的ACME和CRL设置</p>
+        </div>
+        
+        <form action="{{ url_for('main.save_ca_settings', ca_id=ca.id) }}" method="POST" class="bg-white rounded-lg shadow mb-6">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800">ACME设置</h3>
+                <p class="text-gray-600 mt-1">配置ACME自动证书签发功能</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="acme_enabled" name="acme_enabled" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                               {% if ca.acme_enabled %}checked{% endif %}>
+                        <label for="acme_enabled" class="ml-2 block text-sm text-gray-900">启用ACME支持</label>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">启用后，可以通过ACME协议自动签发证书</p>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="auto_approve" name="auto_approve" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                               {% if ca.auto_approve %}checked{% endif %}>
+                        <label for="auto_approve" class="ml-2 block text-sm text-gray-900">自动通过所有验证</label>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">启用后，所有ACME验证请求将自动通过（仅用于测试环境）</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ACME验证方式</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="http01_enabled" name="http01_enabled" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                                   {% if ca.http01_enabled %}checked{% endif %}>
+                            <label for="http01_enabled" class="ml-2 block text-sm text-gray-900">HTTP-01验证</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="dns01_enabled" name="dns01_enabled" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                                   {% if ca.dns01_enabled %}checked{% endif %}>
+                            <label for="dns01_enabled" class="ml-2 block text-sm text-gray-900">DNS-01验证</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800">CRL设置</h3>
+                <p class="text-gray-600 mt-1">配置证书吊销列表功能</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="crl_enabled" name="crl_enabled" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                               {% if ca.crl_enabled %}checked{% endif %}>
+                        <label for="crl_enabled" class="ml-2 block text-sm text-gray-900">启用CRL功能</label>
+                    </div>
+                    <p class="mt-1 text-sm text-gray-500">启用后，将生成和维护证书吊销列表</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="crl_validity_days" class="block text-sm font-medium text-gray-700 mb-1">CRL有效期（天）</label>
+                    <input type="number" id="crl_validity_days" name="crl_validity_days" min="1" max="365" 
+                           class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                           value="{{ ca.crl_validity_days or 30 }}">
+                    <p class="mt-1 text-sm text-gray-500">CRL列表的有效期</p>
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                <div class="flex justify-end space-x-3">
+                    <a href="{{ url_for('main.ca_detail', ca_id=ca.id) }}" 
+                       class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                        取消
+                    </a>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        保存设置
+                    </button>
+                </div>
+            </div>
+        </form>
+        
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-800">ACME快速开始指南</h3>
+                <p class="text-gray-600 mt-1">使用acme.sh客户端配置ACME集成</p>
+            </div>
+            <div class="p-6">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ACME目录URL</label>
+                    <div class="flex">
+                        <input type="text" id="acme_directory_url" 
+                               value="{{ request.url_root[:-1] }}{{ url_for('acme.directory', ca_id=ca.id) }}" 
+                               readonly 
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50">
+                        <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-r-md hover:bg-gray-300 transition-colors flex items-center" 
+                                onclick="copyToClipboard(document.getElementById('acme_directory_url').value)">
+                            <i class="fas fa-copy mr-2"></i>复制
+                        </button>
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">使用此URL配置您的ACME客户端</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">acme.sh 使用示例</label>
+                    <div class="bg-gray-50 rounded-md p-4 relative">
+                        <button class="absolute top-2 right-2 px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors flex items-center text-sm" 
+                                onclick="copyToClipboard(`acme.sh --server {{ request.url_root[:-1] }}{{ url_for('acme.directory', ca_id=ca.id) }} \n        --issue -d example.com -d *.example.com \n        --dns dns_cf`)">
+                            <i class="fas fa-copy mr-1"></i>复制
+                        </button>
+                        <pre class="text-sm text-gray-800"><code>acme.sh --server {{ request.url_root[:-1] }}{{ url_for('acme.directory', ca_id=ca.id) }} 
+    --issue -d example.com -d *.example.com 
+    --dns dns_cf # 假设使用Cloudflare DNS挑战</code></pre>
+                    </div>
+                </div>
+                
+                <div class="text-sm text-gray-600">
+                    <p class="mb-2"><strong>参数说明：</strong></p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><code>--server</code>: 指定ACME服务器目录URL</li>
+                        <li><code>--issue</code>: 请求签发证书</li>
+                        <li><code>-d</code>: 指定要签发证书的域名</li>
+                        <li><code>--dns</code>: 指定DNS挑战提供商</li>
+                    </ul>
+                    <p class="mt-3">了解更多关于 <a href="https://github.com/acmesh-official/acme.sh" target="_blank" class="text-blue-600 hover:underline">acme.sh</a> 的信息</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 复制到剪贴板功能
+        function copyToClipboard(arg1, button) {
+            let text;
+            
+            // 如果arg1是元素ID，则获取元素的文本内容
+            if (typeof arg1 === 'string') {
+                const element = document.getElementById(arg1);
+                text = element ? element.textContent : '';
+            } else {
+                // 否则arg1就是直接要复制的文本
+                text = arg1;
+            }
+            
+            navigator.clipboard.writeText(text).then(() => {
+                // 如果提供了button参数，显示复制成功的提示
+                if (button) {
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-check mr-1"></i>已复制';
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                    }, 2000);
+                } else {
+                    // 否则在控制台输出提示
+                    console.log('已复制到剪贴板');
+                }
+            });
+        }
+    </script>
+{% endblock %}
