@@ -88,6 +88,21 @@ class CertificateAuthority(BaseModel):
     locality = db.Column(db.String(100))            # 城市 (L)
     validity_years = db.Column(db.Integer, default=10)
     
+    # 新增：签名散列算法
+    hash_algorithm = db.Column(db.String(20), default='SHA-256')
+    
+    # 新增：路径长度约束
+    path_length = db.Column(db.Integer)
+    
+    # 新增：密钥用法
+    key_usage = db.Column(db.String(255))
+    
+    # 新增：CRL分发点
+    crl_distribution_points = db.Column(db.Text)
+    
+    # 新增：权威信息访问
+    authority_info_access = db.Column(db.Text)
+    
     # 有效期
     valid_from = db.Column(db.DateTime, nullable=False)
     valid_to = db.Column(db.DateTime, nullable=False)

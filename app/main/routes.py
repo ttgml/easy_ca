@@ -80,6 +80,13 @@ def init_routes(main_bp):
             key_type = request.form.get('key_type', 'RSA')
             key_size = int(request.form.get('key_size', 2048))
             
+            # 获取高级选项数据
+            hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
+            path_length = request.form.get('path_length')
+            key_usage = request.form.getlist('key_usage')
+            crl_distribution_points = request.form.get('crl_distribution_points')
+            authority_info_access = request.form.get('authority_info_access')
+            
             # 简单的表单验证
             if not name or not common_name:
                 flash('请填写CA名称和通用名称', 'danger')
@@ -146,22 +153,87 @@ def init_routes(main_bp):
                     .serial_number(x509.random_serial_number())
                     .not_valid_before(valid_from)
                     .not_valid_after(valid_to)
-                    .add_extension(
-                        x509.BasicConstraints(ca=True, path_length=None), critical=True,
-                    )
                 )
                 
+                # 添加基本约束扩展
+                path_length_value = int(path_length) if path_length else None
+                cert_builder = cert_builder.add_extension(
+                    x509.BasicConstraints(ca=True, path_length=path_length_value), critical=True,
+                )
+                
+                # 添加密钥用法扩展（如果有）
+                if key_usage:
+                    key_usage_flags = []
+                    if 'digital_signature' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.digital_signature)
+                    if 'key_encipherment' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_encipherment)
+                    if 'data_encipherment' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.data_encipherment)
+                    if 'key_agreement' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_agreement)
+                    if 'key_cert_sign' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_cert_sign)
+                    if 'crl_sign' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.crl_sign)
+                    
+                    # 如果有密钥用法，则添加扩展
+                    if key_usage_flags:
+                        # 构建完整的KeyUsage对象
+                        key_usage_extension = x509.KeyUsage(
+                            digital_signature='digital_signature' in key_usage,
+                            content_commitment=False,  # non_repudiation
+                            key_encipherment='key_encipherment' in key_usage,
+                            data_encipherment='data_encipherment' in key_usage,
+                            key_agreement='key_agreement' in key_usage,
+                            key_cert_sign='key_cert_sign' in key_usage,
+                            crl_sign='crl_sign' in key_usage,
+                            encipher_only=False,
+                            decipher_only=False
+                        )
+                        cert_builder = cert_builder.add_extension(key_usage_extension, critical=False)
+                
+                # 添加CRL分发点扩展（如果有）
+                if crl_distribution_points:
+                    # 这里需要解析CRL分发点URL并创建相应的扩展
+                    # 为简化起见，我们假设输入的是一个URL
+                    from cryptography.x509 import DistributionPoint, DistributionPointName, URI
+                    crl_dp = DistributionPoint(
+                        full_name=[URI(crl_distribution_points)],
+                        relative_name=None,
+                        reasons=None,
+                        crl_issuer=None
+                    )
+                    cert_builder = cert_builder.add_extension(
+                        x509.CRLDistributionPoints([crl_dp]), critical=False
+                    )
+                
+                # 添加权威信息访问扩展（如果有）
+                if authority_info_access:
+                    # 这里需要解析权威信息访问扩展的值
+                    # 为简化起见，我们假设输入的是一个OCSP URL
+                    from cryptography.x509 import AuthorityInformationAccess, AccessDescription, AuthorityInformationAccessOID
+                    aia = AccessDescription(
+                        AuthorityInformationAccessOID.OCSP,
+                        URI(authority_info_access)
+                    )
+                    cert_builder = cert_builder.add_extension(
+                        x509.AuthorityInformationAccess([aia]), critical=False
+                    )
+                
                 # 签名证书
-                if key_type == 'RSA':
-                    certificate = cert_builder.sign(
-                        private_key=private_key,
-                        algorithm=hashes.SHA256(),
-                    )
-                else:  # ECC
-                    certificate = cert_builder.sign(
-                        private_key=private_key,
-                        algorithm=hashes.SHA256(),
-                    )
+                # 根据hash_algorithm选择签名算法
+                hash_algorithm_map = {
+                    'SHA-256': hashes.SHA256(),
+                    'SHA-384': hashes.SHA384(),
+                    'SHA-512': hashes.SHA512(),
+                }
+                algorithm = hash_algorithm_map.get(hash_algorithm, hashes.SHA256())
+                
+                certificate = cert_builder.sign(
+                    private_key=private_key,
+                    algorithm=algorithm,
+                )
                 
                 # 将私钥和证书转换为PEM格式
                 private_key_pem = private_key.private_bytes(
@@ -200,6 +272,12 @@ def init_routes(main_bp):
                 new_ca.validity_years = validity_years
                 new_ca.key_type = key_type
                 new_ca.key_size = key_size
+                # 设置高级选项属性
+                new_ca.hash_algorithm = hash_algorithm
+                new_ca.path_length = path_length_value
+                new_ca.key_usage = ','.join(key_usage) if key_usage else None
+                new_ca.crl_distribution_points = crl_distribution_points
+                new_ca.authority_info_access = authority_info_access
                 
                 # 加密存储私钥
                 new_ca.set_private_key(private_key_pem)
