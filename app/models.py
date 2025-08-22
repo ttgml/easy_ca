@@ -147,6 +147,9 @@ class ACMEOrder(BaseModel):
     # 证书URL
     certificate_url = db.Column(db.String(500))
     
+    # 证书内容（PEM格式）
+    certificate = db.Column(db.Text)
+    
     # 关系：一个订单可以有多个授权
     authorizations = db.relationship('ACMEAuthorization', backref='order', lazy=True)
 

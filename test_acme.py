@@ -2,7 +2,7 @@ import requests
 import json
 
 # 发送一个简单的POST请求到new-account端点
-url = "http://127.0.0.1:5000/acme/4/new-account"
+url = "http://127.0.0.1:5000/acme/1/new-account"
 headers = {
     "Content-Type": "application/jose+json"
 }

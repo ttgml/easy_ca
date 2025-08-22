@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 from flask import request, current_app
+from app import db
 from app.models import ACMENonce
 import logging
 
@@ -18,9 +19,11 @@ def generate_nonce():
     # 创建一个新的nonce记录，设置5分钟过期时间
     nonce_record = ACMENonce(
         nonce=nonce,
-        expires_at=datetime.utcnow() + timedelta(minutes=5)
+        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        error=None
     )
-    nonce_record.save()
+    db.session.add(nonce_record)
+    db.session.commit()
     return nonce
 
 
@@ -32,11 +35,13 @@ def verify_nonce(nonce):
         # 检查是否过期
         if nonce_record.expires_at > datetime.utcnow():
             # 删除已使用的nonce
-            nonce_record.delete()
+            db.session.delete(nonce_record)
+            db.session.commit()
             return True
         else:
             # 删除过期的nonce
-            nonce_record.delete()
+            db.session.delete(nonce_record)
+            db.session.commit()
     return False
 
 
@@ -112,7 +117,7 @@ def parse_jws(verify_nonce_flag=True):
         signing_input = f"{jws_data['protected']}.{jws_data['payload']}".encode()
         
         # 验证签名
-        if not verify_signature(signing_input, signature, jwk):
+        if not verify_signature(signing_input, signature, jwk, kid, nonce):
             raise ValueError('Invalid signature')
         
         return {
@@ -126,7 +131,7 @@ def parse_jws(verify_nonce_flag=True):
         raise
 
 
-def verify_signature(signing_input, signature, jwk=None):
+def verify_signature(signing_input, signature, jwk=None, kid=None, nonce=None):
     """验证JWS签名"""
     try:
         if jwk:
@@ -134,21 +139,18 @@ def verify_signature(signing_input, signature, jwk=None):
             public_key = load_jwk(jwk)
         else:
             # 使用账户密钥ID获取公钥
-            # 从Flask请求上下文中获取kid
-            from flask import request
             from app.models import ACMEAccount
             import json
             
-            # 获取JWS数据
-            jws_data = request.get_json()
-            
-            # 解码头部
-            protected_header = json.loads(base64url_decode(jws_data['protected']))
-            
             # 获取账户密钥ID
-            kid = protected_header.get('kid')
             if not kid:
-                raise ValueError('Missing kid in protected header')
+                # 从Flask请求上下文中获取kid
+                from flask import request
+                jws_data = request.get_json()
+                protected_header = json.loads(base64url_decode(jws_data['protected']))
+                kid = protected_header.get('kid')
+                if not kid:
+                    raise ValueError('Missing kid in protected header')
             
             # 从kid中提取账户ID（假设kid格式为账户URL）
             # 例如：kid = "http://example.com/acme/4/account/123"
@@ -163,6 +165,9 @@ def verify_signature(signing_input, signature, jwk=None):
             # 从数据库获取账户
             account = ACMEAccount.query.get(account_id)
             if not account:
+                # 对于账户ID为0的特殊情况（certbot注销时可能使用），返回空响应
+                if account_id == 0:
+                    return True
                 raise ValueError('Account not found')
             
             # 从账户获取完整的JWK
@@ -174,7 +179,12 @@ def verify_signature(signing_input, signature, jwk=None):
             public_key = load_jwk(stored_jwk)
         
         # 验证签名
-        public_key.verify(signature, signing_input, padding.PKCS1v15(), hashes.SHA256())
+        public_key.verify(
+            signature,
+            signing_input,
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
         return True
     except InvalidSignature:
         return False

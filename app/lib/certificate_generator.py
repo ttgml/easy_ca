@@ -95,9 +95,9 @@ class CertificateGenerator:
 
         # 添加CRL分发点扩展（如果有）
         if crl_distribution_points:
-            from cryptography.x509 import DistributionPoint, DistributionPointName, URI
+            from cryptography.x509 import DistributionPoint
             crl_dp = DistributionPoint(
-                full_name=[URI(crl_distribution_points)],
+                full_name=[x509.UniformResourceIdentifier(crl_distribution_points)],
                 relative_name=None,
                 reasons=None,
                 crl_issuer=None
@@ -108,10 +108,11 @@ class CertificateGenerator:
 
         # 添加权威信息访问扩展（如果有）
         if authority_info_access:
-            from cryptography.x509 import AuthorityInformationAccess, AccessDescription, AuthorityInformationAccessOID
+            from cryptography.x509 import AuthorityInformationAccess, AccessDescription
+            from cryptography.x509.oid import AuthorityInformationAccessOID
             aia = AccessDescription(
                 AuthorityInformationAccessOID.OCSP,
-                URI(authority_info_access)
+                x509.UniformResourceIdentifier(authority_info_access)
             )
             cert_builder = cert_builder.add_extension(
                 x509.AuthorityInformationAccess([aia]), critical=False
@@ -191,15 +192,15 @@ class CertificateGenerator:
         if extended_key_usage:
             extended_key_usage_oids = []
             if 'serverAuth' in extended_key_usage:
-                extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH)
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.SERVER_AUTH)
             if 'clientAuth' in extended_key_usage:
-                extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH)
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.CLIENT_AUTH)
             if 'codeSigning' in extended_key_usage:
-                extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CODE_SIGNING)
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.CODE_SIGNING)
             if 'emailProtection' in extended_key_usage:
-                extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.EMAIL_PROTECTION)
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.EMAIL_PROTECTION)
             if 'timeStamping' in extended_key_usage:
-                extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.TIME_STAMPING)
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.TIME_STAMPING)
 
             cert_builder = cert_builder.add_extension(
                 x509.ExtendedKeyUsage(extended_key_usage_oids),
@@ -242,3 +243,99 @@ class CertificateGenerator:
         ).decode('utf-8')
 
         return private_key_pem, certificate_pem
+
+    @staticmethod
+    def create_certificate_from_csr(csr_public_key, ca_private_key, ca_cert, common_name, sans=None,
+                                   validity_days=365, hash_algorithm='SHA-256', key_usage=None,
+                                   extended_key_usage=None, is_ca=False, path_length=None,
+                                   crl_distribution_points=None, authority_info_access=None):
+        """从CSR公钥创建证书（用于ACME场景）"""
+        # 创建证书主体
+        subject = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+        ])
+
+        # 颁发者是CA
+        issuer = ca_cert.subject
+
+        # 设置证书有效期
+        valid_from = datetime.now(timezone.utc)
+        valid_to = valid_from + timedelta(days=validity_days)
+
+        # 创建证书生成器
+        cert_builder = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(csr_public_key)
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(valid_from)
+            .not_valid_after(valid_to)
+        )
+
+        # 添加基本约束扩展
+        if is_ca:
+            path_length_value = int(path_length) if path_length else None
+            cert_builder = cert_builder.add_extension(
+                x509.BasicConstraints(ca=True, path_length=path_length_value), critical=True,
+            )
+        else:
+            cert_builder = cert_builder.add_extension(
+                x509.BasicConstraints(ca=False, path_length=None), critical=True,
+            )
+
+        # 添加密钥用法扩展
+        if key_usage:
+            key_usage_value = x509.KeyUsage(
+                digital_signature='digitalSignature' in key_usage,
+                content_commitment=False,
+                key_encipherment='keyEncipherment' in key_usage,
+                data_encipherment='dataEncipherment' in key_usage,
+               key_agreement='keyAgreement' in key_usage,
+                key_cert_sign='keyCertSign' in key_usage,
+                crl_sign='cRLSign' in key_usage,
+                encipher_only=False,
+                decipher_only=False
+            )
+            cert_builder = cert_builder.add_extension(key_usage_value, critical=True)
+
+        # 添加扩展密钥用法扩展
+        if extended_key_usage:
+            extended_key_usage_oids = []
+            if 'serverAuth' in extended_key_usage:
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.SERVER_AUTH)
+            if 'clientAuth' in extended_key_usage:
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.CLIENT_AUTH)
+            if 'codeSigning' in extended_key_usage:
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.CODE_SIGNING)
+            if 'emailProtection' in extended_key_usage:
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.EMAIL_PROTECTION)
+            if 'timeStamping' in extended_key_usage:
+                extended_key_usage_oids.append(x509.ExtendedKeyUsageOID.TIME_STAMPING)
+
+            cert_builder = cert_builder.add_extension(
+                x509.ExtendedKeyUsage(extended_key_usage_oids),
+                critical=False
+            )
+
+        # 添加SANs扩展（如果有）
+        if sans:
+            san_list = [x509.DNSName(san) for san in sans]
+            cert_builder = cert_builder.add_extension(
+                x509.SubjectAlternativeName(san_list),
+                critical=False,
+            )
+
+        # 签名证书
+        hash_algorithm_map = {
+            'SHA-256': hashes.SHA256(),
+            'SHA-384': hashes.SHA384(),
+            'SHA-512': hashes.SHA512(),
+        }
+
+        certificate = cert_builder.sign(
+            private_key=ca_private_key,
+            algorithm=hash_algorithm_map[hash_algorithm],
+        )
+
+        return certificate, valid_from, valid_to

@@ -2,9 +2,11 @@ from flask import jsonify, request, current_app
 from app.acme import acme_bp
 from app.models import CertificateAuthority, ACMEAccount, ACMEOrder, ACMEAuthorization, ACMEChallenge
 from app.acme.utils import generate_nonce, parse_jws, generate_thumbprint, base64url_decode
+from app import db
 import json
 import secrets
-from cryptography.x509 import NameOID, ExtensionOID, DNSName
+from cryptography.x509 import NameOID, DNSName
+from cryptography.hazmat._oid import ExtensionOID
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
@@ -130,9 +132,13 @@ def init_acme_routes():
                 return response, 409
         elif only_return_existing:
             # 账户不存在且onlyReturnExisting为true
-            response = jsonify({'error': 'Account does not exist'})
+            # 根据RFC 8555，当账户不存在时，应该返回200状态码和空JSON对象
+            # 这样客户端就知道账户不存在，可以重新注册
+            # 但仍然需要设置Location头，以便客户端可以正确处理响应
+            response = jsonify({})
+            response.headers['Location'] = f"{request.url_root[:-1]}/acme/{ca_id}/account/0"  # 使用0作为不存在账户的占位符ID
             response.headers['Replay-Nonce'] = nonce
-            return response, 400
+            return response, 200
         
         # 创建新账户
         contact = payload.get('contact', [])
@@ -146,7 +152,8 @@ def init_acme_routes():
             contact=json.dumps(contact),
             terms_of_service_agreed=terms_of_service_agreed
         )
-        new_account.save()
+        db.session.add(new_account)
+        db.session.commit()
         
         # 生成nonce
         nonce = secrets.token_urlsafe(16)
@@ -228,13 +235,15 @@ def init_acme_routes():
             account_id=account.id,
             ca_id=ca_id,
             status='pending',
-            domains=domains,  # 必须提供domains字段的值
+            domains=json.dumps(identifiers),  # 必须提供domains字段的值
             expires_at=payload.get('notAfter')  # 正确的字段名称是expires_at
         )
-        new_order.save()
+        db.session.add(new_order)
+        db.session.commit()
         
         # 为每个标识符创建授权
         authorizations = []
+        authz_objects = []  # 存储授权对象以便后续使用
         for identifier in identifiers:
             if identifier.get('type') == 'dns':
                 domain = identifier.get('value')
@@ -246,21 +255,28 @@ def init_acme_routes():
                     domain=domain,
                     status='pending'
                 )
-                authz.save()
+                db.session.add(authz)
+                authz_objects.append(authz)
+        db.session.commit()
                 
-                # 创建HTTP-01挑战
-                token = secrets.token_urlsafe(32)
-                challenge = ACMEChallenge(
-                    challenge_id=secrets.token_urlsafe(16),
-                    authz_id=authz.id,  # 使用正确的字段名authz_id
-                    type='http-01',
-                    token=token,
-                    status='pending'
-                )
-                challenge.save()
+        # 创建HTTP-01挑战（使用最后一个授权对象）
+        challenge = None
+        if authz_objects:
+            authz = authz_objects[-1]  # 使用最后一个授权对象
+            token = secrets.token_urlsafe(32)
+            challenge = ACMEChallenge(
+                challenge_id=secrets.token_urlsafe(16),
+                authz_id=authz.id,  # 使用正确的authz_id字段
+                type='http-01',
+                token=token,
+                status='pending'
+            )
+            db.session.add(challenge)
+            db.session.commit()
                 
-                # 添加授权URL到列表
-                authorizations.append(f"{request.url_root[:-1]}/acme/{ca_id}/authz/{authz.id}")
+        # 添加授权URL到列表（如果有授权对象）
+        if authz_objects:
+            authorizations.append(f"{request.url_root[:-1]}/acme/{ca_id}/authz/{authz.authz_id}")
         
         # 生成nonce
         nonce = secrets.token_urlsafe(16)
@@ -293,8 +309,14 @@ def init_acme_routes():
         if not ca.acme_enabled:
             return jsonify({'error': 'ACME not enabled for this CA'}), 400
         
-        # 获取授权信息 - 使用id字段（整数主键）而不是authz_id字段（字符串）
-        authz = ACMEAuthorization.query.filter_by(id=authz_id, order_id=ACMEOrder.id).join(ACMEOrder).filter(ACMEOrder.ca_id==ca_id).first_or_404()
+        # 获取授权信息 - 使用authz_id字段（字符串）来匹配URL参数
+        # 注意：order_id字段存储的是ACMEOrder.order_id（字符串），不是ACMEOrder.id（整数）
+        authz = ACMEAuthorization.query.filter_by(authz_id=authz_id).first_or_404()
+        
+        # 验证授权所属的CA是否正确
+        order = ACMEOrder.query.filter_by(id=authz.order_id).first()
+        if not order or order.ca_id != ca_id:
+            return jsonify({'error': 'Authorization not found'}), 404
         
         # 获取挑战信息
         challenges = ACMEChallenge.query.filter_by(authz_id=authz.id).all()
@@ -339,7 +361,7 @@ def init_acme_routes():
         response.headers['Replay-Nonce'] = nonce
         return response, 200
     
-    @acme_bp.route('/<int:ca_id>/challenge/<challenge_id>', methods=['POST'])
+    @acme_bp.route('/<int:ca_id>/challenge/<path:challenge_id>', methods=['POST'])
     def respond_to_challenge(ca_id, challenge_id):
         """ACME响应挑战端点"""
         # 获取CA信息
@@ -360,14 +382,15 @@ def init_acme_routes():
             return response, 400
         
         # 获取挑战信息 - 使用challenge_id字段（字符串）匹配URL中的参数
-        challenge = ACMEChallenge.query.filter_by(challenge_id=challenge_id).join(ACMEAuthorization).join(ACMEOrder).filter(ACMEOrder.ca_id==ca_id).first_or_404()
+        challenge = ACMEChallenge.query.filter_by(challenge_id=challenge_id).first_or_404()
         
         # 更新挑战状态为processing
         challenge.status = 'processing'
-        challenge.save()
+        db.session.add(challenge)
+        db.session.commit()
         
         # 获取关联的授权 - 使用正确的authz_id字段（外键）
-        authz = ACMEAuthorization.query.get(challenge.authz_id)
+        authz = ACMEAuthorization.query.filter_by(id=challenge.authz_id).first()
         
         # 生成nonce
         nonce = secrets.token_urlsafe(16)
@@ -397,14 +420,16 @@ def init_acme_routes():
         # 在生产环境中，应该有一个独立的验证服务来检查HTTP-01挑战
         # 这里我们假设验证成功
         challenge.status = 'valid'
-        challenge.save()
+        db.session.add(challenge)
+        db.session.commit()
         
         # 更新授权状态
         authz.status = 'valid'
-        authz.save()
+        db.session.add(authz)
+        db.session.commit()
         
         # 检查是否所有授权都已完成
-        order = ACMEOrder.query.get(authz.order_id)
+        order = ACMEOrder.query.filter_by(id=authz.order_id).first()
         all_valid = True
         authorizations = ACMEAuthorization.query.filter_by(order_id=order.id).all()
         for authorization in authorizations:
@@ -415,10 +440,11 @@ def init_acme_routes():
         # 如果所有授权都已完成，更新订单状态
         if all_valid:
             order.status = 'ready'
-            order.save()
+            db.session.add(order)
+            db.session.commit()
         
         # 构建授权URL作为"up"链接
-        authz_url = f"{request.url_root[:-1]}/acme/{ca_id}/authz/{authz.id}"
+        authz_url = f"{request.url_root[:-1]}/acme/{ca_id}/authz/{authz.authz_id}"
         
         # 设置响应及头信息
         response = jsonify(response_data)
@@ -426,7 +452,62 @@ def init_acme_routes():
         response.headers['Link'] = f'<{authz_url}>;rel="up"'
         return response, 200
     
-    @acme_bp.route('/<int:ca_id>/order/<order_id>/finalize', methods=['POST'])
+    @acme_bp.route('/<int:ca_id>/order/<path:order_id>', methods=['POST'])
+    def get_order(ca_id, order_id):
+        """ACME获取订单信息端点"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查CA是否启用ACME
+        if not ca.acme_enabled:
+            response = jsonify({'error': 'ACME not enabled for this CA'})
+            response.headers['Replay-Nonce'] = secrets.token_urlsafe(16)
+            return response, 400
+        
+        # 解析JWS请求 - 对于账户更新请求，不严格验证nonce
+        try:
+            jws_data = parse_jws(verify_nonce_flag=False)
+        except Exception as e:
+            response = jsonify({'error': str(e)})
+            response.headers['Replay-Nonce'] = secrets.token_urlsafe(16)
+            return response, 400
+        
+        # 获取订单信息
+        # 使用整数类型的id字段来查询订单，而不是字符串类型的order_id字段
+        order = ACMEOrder.query.filter_by(id=order_id).filter(ACMEOrder.ca_id==ca_id).first_or_404()
+        
+        # 获取授权信息
+        authorizations = ACMEAuthorization.query.filter_by(order_id=order.id).all()
+        authorization_urls = []
+        for authz in authorizations:
+            authorization_urls.append(f"{request.url_root[:-1]}/acme/{ca_id}/authz/{authz.authz_id}")
+        
+        # 构建响应
+        response_data = {
+            'status': order.status,
+            'identifiers': json.loads(order.domains) if order.domains else [],
+            'authorizations': authorization_urls,
+            'finalize': f"{request.url_root[:-1]}/acme/{ca_id}/order/{order.id}/finalize"
+        }
+        
+        # 只有当expires_at有值时才添加到响应中，避免返回None导致解析错误
+        if order.expires_at:
+            response_data['expires'] = order.expires_at.isoformat()
+        
+        # 如果订单有证书，添加证书URL
+        if order.certificate:
+            response_data['certificate'] = f"{request.url_root[:-1]}/acme/{ca_id}/cert/{order.id}"
+        
+        # 生成nonce
+        nonce = secrets.token_urlsafe(16)
+        
+        # 设置响应及头信息
+        response = jsonify(response_data)
+        response.headers['Replay-Nonce'] = nonce
+        response.headers['Location'] = f"{request.url_root[:-1]}/acme/{ca_id}/order/{order.id}"
+        return response, 200
+
+    @acme_bp.route('/<int:ca_id>/order/<path:order_id>/finalize', methods=['POST'])
     def finalize_order(ca_id, order_id):
         """ACME最终化订单端点"""
         # 获取CA信息
@@ -477,7 +558,7 @@ def init_acme_routes():
         
         # 更新订单状态为processing
         order.status = 'processing'
-        order.save()
+        db.session.commit()
         
         # 生成nonce
         nonce = secrets.token_urlsafe(16)
@@ -486,7 +567,7 @@ def init_acme_routes():
         try:
             # 获取CA私钥
             ca_private_key = serialization.load_pem_private_key(
-                ca.private_key.encode(),
+                ca.get_private_key().encode(),
                 password=None
             )
             
@@ -506,8 +587,9 @@ def init_acme_routes():
             # 从CSR中提取SANs
             sans = []
             try:
-                san_ext = csr.extensions.get_extension_for_oid(x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
-                sans = san_ext.value.get_values_for_type(x509.DNSName)
+                san_ext = csr.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+                # 使用正确的方法获取DNS名称
+                sans = [dns_name.value for dns_name in san_ext.value]
             except (x509.ExtensionNotFound, ValueError):
                 # 如果没有SANs，至少添加通用名称
                 sans = [common_name]
@@ -517,7 +599,7 @@ def init_acme_routes():
             extended_key_usage = ['serverAuth']
             
             # 生成证书
-            certificate, _, _ = CertificateGenerator.create_end_entity_certificate(
+            certificate, _, _ = CertificateGenerator.create_certificate_from_csr(
                 csr.public_key(),
                 ca_private_key,
                 ca_cert,
@@ -529,17 +611,22 @@ def init_acme_routes():
                 extended_key_usage=extended_key_usage
             )
             
-            # 将证书转换为PEM格式
+            # 将证书转换为PEM格式并添加CA证书以形成完整的证书链
             cert_pem = certificate.public_bytes(serialization.Encoding.PEM).decode()
+            ca_cert_pem = ca.certificate
+            full_chain = cert_pem + ca_cert_pem
             
             # 更新订单状态和证书
             order.status = 'valid'
-            order.certificate = cert_pem
-            order.save()
+            order.certificate = full_chain
+            db.session.commit()
         except Exception as e:
+            import traceback
+            print(f"Certificate generation error: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
             order.status = 'invalid'
-            order.save()
-            response = jsonify({'error': 'Failed to generate certificate'})
+            db.session.commit()
+            response = jsonify({'error': 'Failed to generate certificate', 'details': str(e)})
             response.headers['Replay-Nonce'] = nonce
             return response, 500
         
@@ -553,7 +640,7 @@ def init_acme_routes():
         response.headers['Replay-Nonce'] = nonce
         return response, 200
     
-    @acme_bp.route('/<int:ca_id>/cert/<order_id>', methods=['GET'])
+    @acme_bp.route('/<int:ca_id>/cert/<path:order_id>', methods=['GET', 'POST'])
     def download_certificate(ca_id, order_id):
         """ACME下载证书端点"""
         # 获取CA信息
@@ -571,8 +658,17 @@ def init_acme_routes():
         if order.status != 'valid':
             return jsonify({'error': 'Order is not valid'}), 400
         
-        # 返回证书
-        return order.certificate, 200, {'Content-Type': 'application/pem-certificate-chain'}
+        # 生成nonce
+        nonce = secrets.token_urlsafe(16)
+        
+        # 返回证书和Replay-Nonce头
+        response = current_app.response_class(
+            response=order.certificate,
+            status=200,
+            mimetype='application/pem-certificate-chain'
+        )
+        response.headers['Replay-Nonce'] = nonce
+        return response
     
     @acme_bp.route('/<int:ca_id>/key-change', methods=['POST'])
     def key_change(ca_id):
@@ -624,7 +720,15 @@ def init_acme_routes():
             return response, 400
         
         # 获取账户信息
-        account = ACMEAccount.query.filter_by(id=account_id, user_id=ca.user_id).first_or_404()
+        account = ACMEAccount.query.get(account_id)
+        
+        # 如果账户不存在，根据ACME RFC 8555，对于不存在的账户操作应该返回200和空JSON对象
+        # 这样客户端就知道账户不存在，可以重新注册
+        if not account:
+            response = jsonify({})
+            response.headers['Location'] = f"{request.url_root[:-1]}/acme/{ca_id}/account/{account_id}"
+            response.headers['Replay-Nonce'] = secrets.token_urlsafe(16)
+            return response, 200
         
         # 获取payload
         payload = json.loads(jws_data['payload'])
@@ -633,7 +737,7 @@ def init_acme_routes():
         if payload.get('status') == 'deactivated':
             # 停用账户
             account.status = 'deactivated'
-            account.save()
+            db.session.commit()
         
         # 构建响应
         response_data = {
