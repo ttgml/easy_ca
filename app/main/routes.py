@@ -265,12 +265,6 @@ def init_routes(main_bp):
             ca.http01_enabled = request.form.get('http01_enabled') == 'on'
             ca.dns01_enabled = request.form.get('dns01_enabled') == 'on'
             
-            # 更新CRL设置
-            ca.crl_enabled = request.form.get('crl_enabled') == 'on'
-            crl_validity_days = request.form.get('crl_validity_days', type=int)
-            if crl_validity_days:
-                ca.crl_validity_days = crl_validity_days
-            
             # 保存到数据库
             ca.save()
             

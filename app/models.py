@@ -121,10 +121,6 @@ class CertificateAuthority(BaseModel):
     http01_enabled = db.Column(db.Boolean, default=True)
     dns01_enabled = db.Column(db.Boolean, default=False)
     
-    # CRL settings
-    crl_enabled = db.Column(db.Boolean, default=False)
-    crl_validity_days = db.Column(db.Integer, default=30)
-    
     def set_private_key(self, private_key):
         """加密并存储私钥"""
         # 确保私钥是字节串
