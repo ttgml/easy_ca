@@ -292,32 +292,7 @@
     {% endif %}
     
     <script>
-        // 复制到剪贴板功能
-        function copyToClipboard(arg1, button) {
-            let text;
-            
-            // 如果arg1是元素ID，则获取元素的文本内容
-            if (typeof arg1 === 'string') {
-                const element = document.getElementById(arg1);
-                text = element ? element.textContent : '';
-            } else {
-                // 否则arg1就是直接要复制的文本
-                text = arg1;
-            }
-            
-            navigator.clipboard.writeText(text).then(() => {
-                // 如果提供了button参数，显示复制成功的提示
-                if (button) {
-                    const originalText = button.innerHTML;
-                    button.innerHTML = '<i class="fas fa-check mr-1"></i>已复制';
-                    setTimeout(() => {
-                        button.innerHTML = originalText;
-                    }, 2000);
-                } else {
-                    // 否则在控制台输出提示
-                    console.log('已复制到剪贴板');
-                }
-            });
-        }
+        // 复制到剪贴板功能已在base.html中定义
+        // 这里只需要确保调用时传递正确的参数
     </script>
 {% endblock %}
