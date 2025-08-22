@@ -431,10 +431,27 @@ def init_routes(main_bp):
         # 获取CA信息
         ca = CertificateAuthority.query.get_or_404(cert.ca_id)
         
+        # 初始化指纹变量
+        cert_sha256_fingerprint = None
+        public_key_sha256_fingerprint = None
+        
         # 解析证书信息
         try:
             # 加载证书
             certificate = x509.load_pem_x509_certificate(cert.certificate.encode())
+            
+            # 计算证书SHA-256指纹
+            cert_sha256_fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
+            
+            # 计算公钥SHA-256指纹
+            public_key = certificate.public_key()
+            public_key_der = public_key.public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            public_key_sha256_fingerprint = hashes.Hash(hashes.SHA256())
+            public_key_sha256_fingerprint.update(public_key_der)
+            public_key_sha256_fingerprint = public_key_sha256_fingerprint.finalize().hex()
             
             # 获取Issuer信息
             issuer = certificate.issuer
@@ -471,7 +488,11 @@ def init_routes(main_bp):
         # 检查证书是否为CA证书，以决定是否显示ACME指南
         show_acme_guide = cert.is_ca if cert else False
         
-        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca, issuer_str=issuer_str, subject_str=subject_str, extensions_str=extensions_str, show_acme_guide=show_acme_guide)
+        return render_template('main/certificate_detail.html', current_year=2024, cert=cert, ca=ca, 
+                             issuer_str=issuer_str, subject_str=subject_str, extensions_str=extensions_str, 
+                             show_acme_guide=show_acme_guide, 
+                             cert_sha256_fingerprint=cert_sha256_fingerprint,
+                             public_key_sha256_fingerprint=public_key_sha256_fingerprint)
     
     @main_bp.route('/certificate/<int:cert_id>/revoke', methods=['POST'])
     @login_required

@@ -168,6 +168,35 @@
                 <!-- 详细信息标签页 -->
                 <div id="tab-details" class="tab-content hidden">
                     <div class="mb-4">
+                        <h3 class="text-lg font-semibold mb-4">证书指纹</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                <div class="border-b border-gray-200 bg-gray-50 p-4">
+                                    <h4 class="font-medium">证书SHA-256指纹</h4>
+                                </div>
+                                <div class="p-4 bg-white">
+                                    {% if cert_sha256_fingerprint %}
+                                        <pre class="text-sm whitespace-pre-wrap break-words">{{ cert_sha256_fingerprint }}</pre>
+                                    {% else %}
+                                        <p class="text-gray-500">无法计算证书指纹</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                <div class="border-b border-gray-200 bg-gray-50 p-4">
+                                    <h4 class="font-medium">公钥SHA-256指纹</h4>
+                                </div>
+                                <div class="p-4 bg-white">
+                                    {% if public_key_sha256_fingerprint %}
+                                        <pre class="text-sm whitespace-pre-wrap break-words">{{ public_key_sha256_fingerprint }}</pre>
+                                    {% else %}
+                                        <p class="text-gray-500">无法计算公钥指纹</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
                         <h3 class="text-lg font-semibold mb-4">X.509字段详情</h3>
                         <div class="border border-gray-200 rounded-lg overflow-hidden">
                             <div class="border-b border-gray-200 bg-gray-50 p-4">
