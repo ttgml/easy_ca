@@ -453,6 +453,28 @@ def init_routes(main_bp):
         
         return redirect(url_for('main.certificate_detail', cert_id=cert_id))
 
+    @main_bp.route('/certificate/<int:cert_id>/delete', methods=['POST'])
+    @login_required
+    def delete_certificate(cert_id):
+        """删除证书"""
+        # 获取证书信息
+        cert = Certificate.query.get_or_404(cert_id)
+        
+        # 检查是否为当前用户的证书
+        if cert.user_id != current_user.id:
+            flash('无权删除该证书', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        try:
+            # 删除证书
+            cert.delete()
+            
+            flash('证书已成功删除', 'success')
+        except Exception as e:
+            flash(f'删除证书失败：{str(e)}', 'danger')
+        
+        return redirect(url_for('main.certificate_list'))
+
     @main_bp.route('/ca/<int:ca_id>/revoke', methods=['POST'])
     @login_required
     def revoke_ca(ca_id):
@@ -522,6 +544,34 @@ def init_routes(main_bp):
             flash(f'激活CA失败：{str(e)}', 'danger')
         
         return redirect(url_for('main.ca_detail', ca_id=ca_id))
+
+
+    @main_bp.route('/ca/<int:ca_id>/delete', methods=['POST'])
+    @login_required
+    def delete_ca(ca_id):
+        """删除CA"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权删除该CA', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        try:
+            # 删除由该CA颁发的所有证书
+            certificates = Certificate.query.filter_by(ca_id=ca_id).all()
+            for cert in certificates:
+                cert.delete()
+            
+            # 删除CA
+            ca.delete()
+            
+            flash('CA已成功删除', 'success')
+        except Exception as e:
+            flash(f'删除CA失败：{str(e)}', 'danger')
+        
+        return redirect(url_for('main.ca_list'))
 
     @main_bp.route('/certificate/<int:cert_id>/download/certificate')
     @login_required
@@ -639,6 +689,23 @@ def init_routes(main_bp):
         response.headers['Content-Disposition'] = f'attachment; filename=ca-private-key-{ca_id}.pem'
         return response
     
+    @main_bp.route('/ca/<int:ca_id>/download/certificate')
+    @login_required
+    def download_ca_certificate(ca_id):
+        """下载CA证书文件"""
+        # 获取CA信息
+        ca = CertificateAuthority.query.get_or_404(ca_id)
+        
+        # 检查是否为当前用户的CA
+        if ca.user_id != current_user.id:
+            flash('无权下载该证书', 'danger')
+            return redirect(url_for('main.dashboard'))
+        
+        # 创建响应对象
+        response = Response(ca.certificate, mimetype='application/x-pem-file')
+        response.headers['Content-Disposition'] = f'attachment; filename=ca-certificate-{ca_id}.pem'
+        return response
+    
     @main_bp.route('/acme-settings')
     @login_required
     def acme_settings():
@@ -662,6 +729,72 @@ def init_routes(main_bp):
         # 获取当前用户的所有证书
         certificates = Certificate.query.filter_by(user_id=current_user.id).order_by(Certificate.created_at.desc()).all()
         return render_template('main/certificate_list.html', current_year=2024, certificates=certificates)
+    
+    @main_bp.route('/ca/import', methods=['GET', 'POST'])
+    @login_required
+    def import_ca():
+        """导入CA页面"""
+        if request.method == 'POST':
+            # 处理导入CA的请求
+            name = request.form.get('name')
+            certificate_file = request.files.get('certificate')
+            private_key_file = request.files.get('private_key')
+            
+            if not name or not certificate_file or not private_key_file:
+                flash('请提供所有必需的信息', 'danger')
+                return redirect(url_for('main.import_ca'))
+            
+            try:
+                # 读取证书和私钥文件
+                certificate_data = certificate_file.read().decode('utf-8')
+                private_key_data = private_key_file.read().decode('utf-8')
+                
+                # 解析证书
+                from cryptography import x509
+                from cryptography.hazmat.backends import default_backend
+                certificate = x509.load_pem_x509_certificate(certificate_data.encode(), default_backend())
+                
+                # 解析私钥
+                from cryptography.hazmat.primitives import serialization
+                private_key = serialization.load_pem_private_key(private_key_data.encode(), password=None, backend=default_backend())
+                
+                # 验证证书和私钥是否匹配
+                if certificate.public_key().public_numbers() != private_key.public_key().public_numbers():
+                    flash('证书和私钥不匹配', 'danger')
+                    return redirect(url_for('main.import_ca'))
+                
+                # 创建新的CA对象
+                ca = CertificateAuthority(
+                    name=name,
+                    common_name=certificate.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value,
+                    organization=certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATION_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATION_NAME) else None,
+                    organizational_unit=certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATIONAL_UNIT_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATIONAL_UNIT_NAME) else None,
+                    country=certificate.subject.get_attributes_for_oid(x509.NameOID.COUNTRY_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.COUNTRY_NAME) else None,
+                    state=certificate.subject.get_attributes_for_oid(x509.NameOID.STATE_OR_PROVINCE_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.STATE_OR_PROVINCE_NAME) else None,
+                    locality=certificate.subject.get_attributes_for_oid(x509.NameOID.LOCALITY_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.LOCALITY_NAME) else None,
+                    validity_years=(certificate.not_valid_after - certificate.not_valid_before).days // 365,
+                    valid_from=certificate.not_valid_before,
+                    valid_to=certificate.not_valid_after,
+                    key_type='RSA' if 'RSA' in str(type(private_key)) else 'ECC',
+                    key_size=private_key.key_size if hasattr(private_key, 'key_size') else 256,
+                    serial_number=str(certificate.serial_number),
+                    certificate=certificate_data,
+                    user_id=current_user.id
+                )
+                
+                # 设置私钥
+                ca.set_private_key(private_key_data)
+                
+                # 保存CA
+                ca.save()
+                
+                flash('CA导入成功', 'success')
+                return redirect(url_for('main.ca_detail', ca_id=ca.id))
+            except Exception as e:
+                flash(f'导入CA失败：{str(e)}', 'danger')
+                return redirect(url_for('main.import_ca'))
+        
+        return render_template('main/import_ca.html', current_year=2024)
 
 # 这里需要导入main_bp，以便初始化路由
 # from app.main import main_bp

@@ -24,9 +24,9 @@ class BaseModel(db.Model):
     
     def delete(self):
         """删除模型实例"""
-        self.is_active = False
-        self.save()
-        # 或者直接物理删除：db.session.delete(self)
+        # 直接物理删除
+        db.session.delete(self)
+        db.session.commit()
     
     def update(self, **kwargs):
         """更新模型实例属性"""

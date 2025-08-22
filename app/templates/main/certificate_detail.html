@@ -162,6 +162,10 @@
                         <button class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center" onclick="downloadPKCS12({{ cert.id }});">
                             <i class="fas fa-archive mr-2"></i>下载PKCS#12
                         </button>
+                        <button class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center" 
+                                onclick="document.getElementById('delete-cert-modal').classList.remove('hidden');">
+                            <i class="fas fa-trash-alt mr-2"></i>删除证书
+                        </button>
                     </div>
                 </div>
                 
@@ -322,6 +326,32 @@
             <a href="{{ url_for('main.dashboard') }}" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors flex items-center">
                 <i class="fas fa-arrow-left mr-2"></i>返回仪表盘
             </a>
+        </div>
+    </div>
+    
+    <!-- 删除证书模态框 -->
+    <div id="delete-cert-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">删除证书</h3>
+                    <button onclick="document.getElementById('delete-cert-modal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <p class="text-gray-600 mb-4">您确定要删除此证书吗？此操作将永久删除证书及其相关信息，并且不可撤销。</p>
+                <form action="{{ url_for('main.delete_certificate', cert_id=cert.id) }}" method="POST">
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="document.getElementById('delete-cert-modal').classList.add('hidden')" 
+                                class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors">
+                            取消
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+                            确认删除
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     
