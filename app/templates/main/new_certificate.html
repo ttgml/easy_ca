@@ -102,6 +102,166 @@ api.example.com
                         </select>
                         <p class="mt-2 text-sm text-gray-500">选择证书的有效期</p>
                     </div>
+                    
+                    <!-- 高级选项切换按钮 -->
+                    <div class="mb-4">
+                        <button type="button" id="toggle-advanced-options" class="text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                            <i class="fas fa-chevron-right mr-2 transition-transform duration-200" id="toggle-icon"></i>
+                            显示高级选项
+                        </button>
+                    </div>
+                    
+                    <!-- 高级选项面板 -->
+                    <div id="advanced-options" class="hidden transition-all duration-300 ease-in-out">
+                        <!-- 密钥设置 -->
+                        <div class="mb-6">
+                            <h4 class="text-md font-semibold mb-3 text-gray-800">密钥设置</h4>
+                            
+                            <!-- 密钥类型 -->
+                            <div class="form-group mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">密钥类型</label>
+                                <div class="flex space-x-4">
+                                    <label class="inline-flex items-center">
+                                        <input type="radio" name="key_type" value="RSA" checked class="form-radio text-blue-600">
+                                        <span class="ml-2">RSA</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="radio" name="key_type" value="ECDSA" class="form-radio text-blue-600">
+                                        <span class="ml-2">ECDSA</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- 密钥强度 -->
+                            <div class="form-group mb-4">
+                                <label for="key_size" class="block text-sm font-medium text-gray-700 mb-2">密钥强度</label>
+                                <!-- RSA密钥强度选项 -->
+                                <select id="key_size" name="key_size" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 rsa-options">
+                                    <option value="2048" selected>2048 位</option>
+                                    <option value="3072">3072 位</option>
+                                    <option value="4096">4096 位</option>
+                                </select>
+                                <!-- ECDSA密钥强度选项（默认隐藏） -->
+                                <select id="ec_curve" name="ec_curve" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ecdsa-options hidden">
+                                    <option value="P-256" selected>P-256 (prime256v1)</option>
+                                    <option value="P-384">P-384</option>
+                                    <option value="P-521">P-521</option>
+                                </select>
+                                <p class="mt-2 text-sm text-gray-500">根据所选密钥类型，选择相应的密钥强度</p>
+                            </div>
+                            
+                            <!-- 签名散列算法 -->
+                            <div class="form-group mb-4">
+                                <label for="hash_algorithm" class="block text-sm font-medium text-gray-700 mb-2">签名散列算法</label>
+                                <select id="hash_algorithm" name="hash_algorithm" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="SHA-256" selected>SHA-256</option>
+                                    <option value="SHA-384">SHA-384</option>
+                                    <option value="SHA-512">SHA-512</option>
+                                </select>
+                                <p class="mt-2 text-sm text-gray-500">用于签署证书的散列算法。SHA-256是当前安全与性能的最佳平衡。</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 证书属性 -->
+                        <div class="mb-6">
+                            <h4 class="text-md font-semibold mb-3 text-gray-800">证书属性</h4>
+                            
+                            <!-- 密钥用法 -->
+                            <div class="form-group mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">密钥用法 (Key Usage)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="digitalSignature" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">数字签名</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="keyEncipherment" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">密钥加密</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="dataEncipherment" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">数据加密</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="keyAgreement" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">密钥协商</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="keyCertSign" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">证书签名</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="key_usage" value="cRLSign" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">CRL签名</span>
+                                    </label>
+                                </div>
+                                <p class="mt-2 text-sm text-gray-500">根据所选CA类型智能默认选择。如果签发的是叶证书，默认勾选数字签名和密钥加密。如果签发的是中间CA，默认勾选证书签名和CRL签名。</p>
+                            </div>
+                            
+                            <!-- 扩展密钥用法 -->
+                            <div class="form-group mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">扩展密钥用法 (Extended Key Usage)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="extended_key_usage" value="serverAuth" checked class="form-checkbox text-blue-600">
+                                        <span class="ml-2">服务器身份验证</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="extended_key_usage" value="clientAuth" checked class="form-checkbox text-blue-600">
+                                        <span class="ml-2">客户端身份验证</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="extended_key_usage" value="codeSigning" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">代码签名</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="extended_key_usage" value="emailProtection" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">电子邮件保护</span>
+                                    </label>
+                                    <label class="inline-flex items-center">
+                                        <input type="checkbox" name="extended_key_usage" value="timeStamping" class="form-checkbox text-blue-600">
+                                        <span class="ml-2">时间戳</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- 基本约束 -->
+                            <div class="form-group mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">基本约束 (Basic Constraints)</label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" id="is_ca" name="is_ca" class="form-checkbox text-blue-600">
+                                    <span class="ml-2">标记为CA证书</span>
+                                </label>
+                                <div class="mt-2 hidden" id="path_length_container">
+                                    <label for="path_length" class="block text-sm font-medium text-gray-700 mb-2">路径长度约束</label>
+                                    <input type="number" id="path_length" name="path_length" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <p class="mt-2 text-sm text-gray-500">通常留空</p>
+                                </div>
+                                <p class="mt-2 text-sm text-gray-500">此选项通常应被禁用并自动管理。对于叶证书，自动设置为CA:FALSE。只有当正在创建中间CA时，才允许用户配置此项。</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 信息扩展 -->
+                        <div class="mb-6">
+                            <h4 class="text-md font-semibold mb-3 text-gray-800">信息扩展</h4>
+                            
+                            <!-- CRL分发点 -->
+                            <div class="form-group mb-4">
+                                <label for="crl_distribution_points" class="block text-sm font-medium text-gray-700 mb-2">CRL分发点 (CRL Distribution Points)</label>
+                                <input type="text" id="crl_distribution_points" name="crl_distribution_points" placeholder="https://example.com/crl.pem" 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <p class="mt-2 text-sm text-gray-500">证书吊销列表(CRL)的分发地址。如果留空，将使用父CA的设置。</p>
+                            </div>
+                            
+                            <!-- 权威信息访问 -->
+                            <div class="form-group mb-4">
+                                <label for="authority_info_access" class="block text-sm font-medium text-gray-700 mb-2">权威信息访问 (Authority Information Access)</label>
+                                <input type="text" id="authority_info_access" name="authority_info_access" placeholder="http://ocsp.example.com/" 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <p class="mt-2 text-sm text-gray-500">OCSP响应服务的地址。用于在线检查证书状态。</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- 操作按钮 -->
@@ -116,4 +276,59 @@ api.example.com
             </form>
         </div>
     </div>
+    
+    <!-- JavaScript for advanced options toggle and dynamic behavior -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 高级选项切换
+            const toggleButton = document.getElementById('toggle-advanced-options');
+            const toggleIcon = document.getElementById('toggle-icon');
+            const advancedOptions = document.getElementById('advanced-options');
+            
+            toggleButton.addEventListener('click', function() {
+                const isHidden = advancedOptions.classList.contains('hidden');
+                
+                if (isHidden) {
+                    // 显示高级选项
+                    advancedOptions.classList.remove('hidden');
+                    toggleIcon.style.transform = 'rotate(90deg)';
+                    toggleButton.innerHTML = '<i class="fas fa-chevron-down mr-2 transition-transform duration-200" id="toggle-icon" style="transform: rotate(90deg);"></i>隐藏高级选项';
+                } else {
+                    // 隐藏高级选项
+                    advancedOptions.classList.add('hidden');
+                    toggleIcon.style.transform = 'rotate(0deg)';
+                    toggleButton.innerHTML = '<i class="fas fa-chevron-right mr-2 transition-transform duration-200" id="toggle-icon"></i>显示高级选项';
+                }
+            });
+            
+            // 密钥类型切换
+            const keyTypeRadios = document.querySelectorAll('input[name="key_type"]');
+            const rsaOptions = document.querySelector('.rsa-options');
+            const ecdsaOptions = document.querySelector('.ecdsa-options');
+            
+            keyTypeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'RSA') {
+                        rsaOptions.classList.remove('hidden');
+                        ecdsaOptions.classList.add('hidden');
+                    } else {
+                        rsaOptions.classList.add('hidden');
+                        ecdsaOptions.classList.remove('hidden');
+                    }
+                });
+            });
+            
+            // 基本约束切换
+            const isCaCheckbox = document.getElementById('is_ca');
+            const pathLengthContainer = document.getElementById('path_length_container');
+            
+            isCaCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    pathLengthContainer.classList.remove('hidden');
+                } else {
+                    pathLengthContainer.classList.add('hidden');
+                }
+            });
+        });
+    </script>
 {% endblock %}

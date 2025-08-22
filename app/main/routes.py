@@ -282,11 +282,28 @@ def init_routes(main_bp):
         cas = CertificateAuthority.query.filter_by(user_id=current_user.id, status='active').all()
         
         if request.method == 'POST':
-            # 获取表单数据
+            # 获取基础表单数据
             ca_id = request.form.get('ca_id')
             common_name = request.form.get('common_name')
             sans_text = request.form.get('sans')
             validity_days = int(request.form.get('validity_days', 365))
+            
+            # 获取高级选项数据
+            # 密钥设置
+            key_type = request.form.get('key_type', 'RSA')
+            key_size = int(request.form.get('key_size', 2048))
+            ec_curve = request.form.get('ec_curve', 'P-256')
+            hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
+            
+            # 证书属性
+            key_usage = request.form.getlist('key_usage')
+            extended_key_usage = request.form.getlist('extended_key_usage')
+            is_ca = request.form.get('is_ca') == 'on'
+            path_length = request.form.get('path_length')
+            
+            # 信息扩展
+            crl_distribution_points = request.form.get('crl_distribution_points')
+            authority_info_access = request.form.get('authority_info_access')
             
             # 简单的表单验证
             if not ca_id or not common_name:
@@ -307,13 +324,19 @@ def init_routes(main_bp):
                 return redirect(url_for('main.new_certificate'))
             
             try:
-                # 生成证书（使用cryptography库）
-                
-                # 生成新的密钥对
-                cert_private_key = rsa.generate_private_key(
-                    public_exponent=65537,
-                    key_size=2048,
-                )
+                # 根据密钥类型生成密钥对
+                if key_type == 'RSA':
+                    cert_private_key = rsa.generate_private_key(
+                        public_exponent=65537,
+                        key_size=key_size,
+                    )
+                else:  # ECDSA
+                    curve_map = {
+                        'P-256': ec.SECP256R1(),
+                        'P-384': ec.SECP384R1(),
+                        'P-521': ec.SECP521R1(),
+                    }
+                    cert_private_key = ec.generate_private_key(curve_map[ec_curve])
                 
                 # 解析CA私钥
                 ca_private_key_pem = ca.get_private_key()
@@ -351,13 +374,69 @@ def init_routes(main_bp):
                     .serial_number(x509.random_serial_number())
                     .not_valid_before(valid_from)
                     .not_valid_after(valid_to)
-                    .add_extension(
-                        x509.BasicConstraints(ca=False, path_length=None), critical=True,
-                    )
                 )
                 
-                # 提取证书序列号
-                serial_number = str(cert_builder.serial_number)
+                # 添加基本约束扩展
+                # 如果用户明确标记为CA，则使用用户设置，否则默认为False
+                if is_ca:
+                    path_length_value = int(path_length) if path_length else None
+                    cert_builder = cert_builder.add_extension(
+                        x509.BasicConstraints(ca=True, path_length=path_length_value), critical=True,
+                    )
+                else:
+                    cert_builder = cert_builder.add_extension(
+                        x509.BasicConstraints(ca=False, path_length=None), critical=True,
+                    )
+                
+                # 添加密钥用法扩展
+                if key_usage:
+                    key_usage_flags = []
+                    if 'digitalSignature' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.digital_signature)
+                    if 'keyEncipherment' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_encipherment)
+                    if 'dataEncipherment' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.data_encipherment)
+                    if 'keyAgreement' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_agreement)
+                    if 'keyCertSign' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.key_cert_sign)
+                    if 'cRLSign' in key_usage:
+                        key_usage_flags.append(x509.KeyUsage.crl_sign)
+                    
+                    # 合并所有密钥用法标志
+                    key_usage_value = x509.KeyUsage(
+                        digital_signature='digitalSignature' in key_usage,
+                        content_commitment=False,  # 未在表单中提供
+                        key_encipherment='keyEncipherment' in key_usage,
+                        data_encipherment='dataEncipherment' in key_usage,
+                        key_agreement='keyAgreement' in key_usage,
+                        key_cert_sign='keyCertSign' in key_usage,
+                        crl_sign='cRLSign' in key_usage,
+                        encipher_only=False,  # 未在表单中提供
+                        decipher_only=False   # 未在表单中提供
+                    )
+                    
+                    cert_builder = cert_builder.add_extension(key_usage_value, critical=True)
+                
+                # 添加扩展密钥用法扩展
+                if extended_key_usage:
+                    extended_key_usage_oids = []
+                    if 'serverAuth' in extended_key_usage:
+                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH)
+                    if 'clientAuth' in extended_key_usage:
+                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH)
+                    if 'codeSigning' in extended_key_usage:
+                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CODE_SIGNING)
+                    if 'emailProtection' in extended_key_usage:
+                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.EMAIL_PROTECTION)
+                    if 'timeStamping' in extended_key_usage:
+                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.TIME_STAMPING)
+                    
+                    cert_builder = cert_builder.add_extension(
+                        x509.ExtendedKeyUsage(extended_key_usage_oids),
+                        critical=False
+                    )
                 
                 # 添加SANs扩展（如果有）
                 if sans:
@@ -367,10 +446,17 @@ def init_routes(main_bp):
                         critical=False,
                     )
                 
+                # 选择哈希算法
+                hash_algorithm_map = {
+                    'SHA-256': hashes.SHA256(),
+                    'SHA-384': hashes.SHA384(),
+                    'SHA-512': hashes.SHA512(),
+                }
+                
                 # 签名证书
                 certificate = cert_builder.sign(
                     private_key=ca_private_key,
-                    algorithm=hashes.SHA256(),
+                    algorithm=hash_algorithm_map[hash_algorithm],
                 )
                 
                 # 将私钥和证书转换为PEM格式
