@@ -7,6 +7,7 @@ import json
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin  # 添加UserMixin
 
+
 class BaseModel(db.Model):
     """基础模型，包含通用字段"""
     __abstract__ = True
@@ -65,6 +66,8 @@ class User(BaseModel, UserMixin):  # 继承UserMixin
     certificate_authorities = db.relationship('CertificateAuthority', backref='user', lazy=True)
     # 关系：一个用户可以有多个证书
     certificates = db.relationship('Certificate', backref='user', lazy=True)
+    # 关系：一个用户可以有多个ACME账户
+    acme_accounts = db.relationship('ACMEAccount', backref='user', lazy=True)
     
     def set_password(self, password):
         """设置用户密码（哈希处理）"""
@@ -73,6 +76,142 @@ class User(BaseModel, UserMixin):  # 继承UserMixin
     def check_password(self, password):
         """验证用户密码"""
         return check_password_hash(self.password_hash, password)
+
+# ACME账户模型
+class ACMEAccount(BaseModel):
+    """ACME账户模型，存储ACME客户端的账户信息"""
+    __tablename__ = 'acme_accounts'
+    
+    # ACME账户ID（由ACME客户端提供）
+    account_id = db.Column(db.String(255), unique=True, nullable=False)
+    
+    # 用户外键
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # 账户状态
+    status = db.Column(db.String(20), default='valid')  # valid, deactivated, revoked
+    
+    # 账户密钥ID（Key ID）
+    key_id = db.Column(db.Text, nullable=False)
+    
+    # 完整的JWK（JSON Web Key）
+    jwk = db.Column(db.Text, nullable=True)
+    
+    # 账户联系信息
+    contact = db.Column(db.Text)  # JSON格式存储联系信息
+    
+    # 账户条款同意状态
+    terms_of_service_agreed = db.Column(db.Boolean, default=False)
+    
+    # 账户创建时间
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 账户更新时间
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系：一个ACME账户可以有多个订单
+    orders = db.relationship('ACMEOrder', backref='account', lazy=True)
+
+# ACME订单模型
+class ACMEOrder(BaseModel):
+    """ACME订单模型，存储证书申请订单信息"""
+    __tablename__ = 'acme_orders'
+    
+    # 订单ID
+    order_id = db.Column(db.String(255), unique=True, nullable=False)
+    
+    # ACME账户外键
+    account_id = db.Column(db.Integer, db.ForeignKey('acme_accounts.id'), nullable=False)
+    
+    # CA外键
+    ca_id = db.Column(db.Integer, db.ForeignKey('certificate_authorities.id'), nullable=False)
+    
+    # 订单状态
+    status = db.Column(db.String(20), default='pending')  # pending, ready, processing, valid, invalid
+    
+    # 授权的域名（JSON格式存储）
+    domains = db.Column(db.Text, nullable=False)
+    
+    # 订单创建时间
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 订单过期时间
+    expires_at = db.Column(db.DateTime)
+    
+    # 证书序列号
+    certificate_serial = db.Column(db.String(255))
+    
+    # 最终化URL
+    finalize_url = db.Column(db.String(500))
+    
+    # 证书URL
+    certificate_url = db.Column(db.String(500))
+    
+    # 关系：一个订单可以有多个授权
+    authorizations = db.relationship('ACMEAuthorization', backref='order', lazy=True)
+
+# ACME授权模型
+class ACMEAuthorization(BaseModel):
+    """ACME授权模型，存储域名验证授权信息"""
+    __tablename__ = 'acme_authorizations'
+    
+    # 授权ID
+    authz_id = db.Column(db.String(255), unique=True, nullable=False)
+    
+    # 订单外键
+    order_id = db.Column(db.Integer, db.ForeignKey('acme_orders.id'), nullable=False)
+    
+    # 域名
+    domain = db.Column(db.String(255), nullable=False)
+    
+    # 授权状态
+    status = db.Column(db.String(20), default='pending')  # pending, valid, invalid, deactivated, expired, revoked
+    
+    # 授权过期时间
+    expires_at = db.Column(db.DateTime)
+    
+    # 关系：一个授权可以有多个挑战
+    challenges = db.relationship('ACMEChallenge', backref='authorization', lazy=True)
+
+# ACME挑战模型
+class ACMEChallenge(BaseModel):
+    """ACME挑战模型，存储验证挑战信息"""
+    __tablename__ = 'acme_challenges'
+    
+    # 挑战ID
+    challenge_id = db.Column(db.String(255), unique=True, nullable=False)
+    
+    # 授权外键
+    authz_id = db.Column(db.Integer, db.ForeignKey('acme_authorizations.id'), nullable=False)
+    
+    # 挑战类型
+    type = db.Column(db.String(50), nullable=False)  # http-01, dns-01, tls-alpn-01
+    
+    # 挑战状态
+    status = db.Column(db.String(20), default='pending')  # pending, processing, valid, invalid
+    
+    # 挑战令牌
+    token = db.Column(db.String(255), nullable=False)
+    
+    # 密钥授权
+    key_authorization = db.Column(db.Text)
+    
+    # 验证时间
+    validated_at = db.Column(db.DateTime)
+
+# ACME Nonce模型
+class ACMENonce(BaseModel):
+    """ACME Nonce模型，存储ACME协议中的nonce值"""
+    __tablename__ = 'acme_nonces'
+    
+    # Nonce值
+    nonce = db.Column(db.String(255), unique=True, nullable=False)
+    
+    # Nonce过期时间
+    expires_at = db.Column(db.DateTime, nullable=False)
+    
+    # 错误信息
+    error = db.Column(db.Text)
 
 # 证书颁发机构模型
 class CertificateAuthority(BaseModel):
@@ -135,6 +274,9 @@ class CertificateAuthority(BaseModel):
     auto_approve = db.Column(db.Boolean, default=False)
     http01_enabled = db.Column(db.Boolean, default=True)
     dns01_enabled = db.Column(db.Boolean, default=False)
+    
+    # 关系：一个CA可以有多个ACME订单
+    acme_orders = db.relationship('ACMEOrder', backref='ca', lazy=True)
     
     def set_private_key(self, private_key):
         """加密并存储私钥"""

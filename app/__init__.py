@@ -54,4 +54,8 @@ def create_app(config_name=None):
     from app.acme import acme_bp
     app.register_blueprint(acme_bp, url_prefix='/acme')
     
+    # 注册ACME挑战处理蓝图
+    from app.acme.challenge_routes import challenge_bp
+    app.register_blueprint(challenge_bp)
+    
     return app
