@@ -79,180 +79,50 @@ def init_routes(main_bp):
             validity_years = int(request.form.get('validity_years', 10))
             key_type = request.form.get('key_type', 'RSA')
             key_size = int(request.form.get('key_size', 2048))
-            
+    
             # 获取高级选项数据
             hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
             path_length = request.form.get('path_length')
             key_usage = request.form.getlist('key_usage')
             crl_distribution_points = request.form.get('crl_distribution_points')
             authority_info_access = request.form.get('authority_info_access')
-            
+    
             # 简单的表单验证
             if not name or not common_name:
                 flash('请填写CA名称和通用名称', 'danger')
                 return redirect(url_for('main.new_ca'))
-            
-            # 生成密钥对和自签名证书（使用cryptography库）
+    
+            # 使用证书生成器创建CA
             try:
-                # 创建一个新的CA
-                from cryptography.hazmat.primitives import hashes
-                from cryptography.hazmat.primitives.asymmetric import rsa, ec
-                from cryptography.x509.oid import NameOID
-                
+                from app.lib.certificate_generator import CertificateGenerator
+    
                 # 生成密钥对
-                if key_type == 'RSA':
-                    private_key = rsa.generate_private_key(
-                        public_exponent=65537,
-                        key_size=key_size,
-                    )
-                else:  # ECC
-                    private_key = ec.generate_private_key(
-                        ec.SECP256R1()
-                    )
-                
-                # 创建证书主体
-                subject_attrs = [
-                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                ]
-                
-                # 添加组织信息（如果有）
-                if organization:
-                    subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization))
-                
-                # 添加组织单位信息（如果有）
-                if organizational_unit:
-                    subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit))
-                
-                # 添加国家信息（如果有）
-                if country:
-                    subject_attrs.append(x509.NameAttribute(NameOID.COUNTRY_NAME, country))
-                
-                # 添加省/州信息（如果有）
-                if state:
-                    subject_attrs.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, state))
-                
-                # 添加城市信息（如果有）
-                if locality:
-                    subject_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, locality))
-                
-                subject = x509.Name(subject_attrs)
-                
-                # 因为是自签名证书，颁发者和主体相同
-                issuer = subject
-                
-                # 设置证书有效期
-                valid_from = datetime.now(timezone.utc)
-                valid_to = valid_from + timedelta(days=365 * validity_years)
-                
-                # 创建证书生成器
-                cert_builder = (
-                    x509.CertificateBuilder()
-                    .subject_name(subject)
-                    .issuer_name(issuer)
-                    .public_key(private_key.public_key())
-                    .serial_number(x509.random_serial_number())
-                    .not_valid_before(valid_from)
-                    .not_valid_after(valid_to)
-                )
-                
-                # 添加基本约束扩展
-                path_length_value = int(path_length) if path_length else None
-                cert_builder = cert_builder.add_extension(
-                    x509.BasicConstraints(ca=True, path_length=path_length_value), critical=True,
-                )
-                
-                # 添加密钥用法扩展（如果有）
-                if key_usage:
-                    key_usage_flags = []
-                    if 'digital_signature' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.digital_signature)
-                    if 'key_encipherment' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_encipherment)
-                    if 'data_encipherment' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.data_encipherment)
-                    if 'key_agreement' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_agreement)
-                    if 'key_cert_sign' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_cert_sign)
-                    if 'crl_sign' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.crl_sign)
-                    
-                    # 如果有密钥用法，则添加扩展
-                    if key_usage_flags:
-                        # 构建完整的KeyUsage对象
-                        key_usage_extension = x509.KeyUsage(
-                            digital_signature='digital_signature' in key_usage,
-                            content_commitment=False,  # non_repudiation
-                            key_encipherment='key_encipherment' in key_usage,
-                            data_encipherment='data_encipherment' in key_usage,
-                            key_agreement='key_agreement' in key_usage,
-                            key_cert_sign='key_cert_sign' in key_usage,
-                            crl_sign='crl_sign' in key_usage,
-                            encipher_only=False,
-                            decipher_only=False
-                        )
-                        cert_builder = cert_builder.add_extension(key_usage_extension, critical=False)
-                
-                # 添加CRL分发点扩展（如果有）
-                if crl_distribution_points:
-                    # 这里需要解析CRL分发点URL并创建相应的扩展
-                    # 为简化起见，我们假设输入的是一个URL
-                    from cryptography.x509 import DistributionPoint, DistributionPointName, URI
-                    crl_dp = DistributionPoint(
-                        full_name=[URI(crl_distribution_points)],
-                        relative_name=None,
-                        reasons=None,
-                        crl_issuer=None
-                    )
-                    cert_builder = cert_builder.add_extension(
-                        x509.CRLDistributionPoints([crl_dp]), critical=False
-                    )
-                
-                # 添加权威信息访问扩展（如果有）
-                if authority_info_access:
-                    # 这里需要解析权威信息访问扩展的值
-                    # 为简化起见，我们假设输入的是一个OCSP URL
-                    from cryptography.x509 import AuthorityInformationAccess, AccessDescription, AuthorityInformationAccessOID
-                    aia = AccessDescription(
-                        AuthorityInformationAccessOID.OCSP,
-                        URI(authority_info_access)
-                    )
-                    cert_builder = cert_builder.add_extension(
-                        x509.AuthorityInformationAccess([aia]), critical=False
-                    )
-                
-                # 签名证书
-                # 根据hash_algorithm选择签名算法
-                hash_algorithm_map = {
-                    'SHA-256': hashes.SHA256(),
-                    'SHA-384': hashes.SHA384(),
-                    'SHA-512': hashes.SHA512(),
-                }
-                algorithm = hash_algorithm_map.get(hash_algorithm, hashes.SHA256())
-                
-                certificate = cert_builder.sign(
+                private_key = CertificateGenerator.generate_key_pair(key_type=key_type, key_size=key_size)
+    
+                # 创建CA证书
+                certificate, valid_from, valid_to = CertificateGenerator.create_ca_certificate(
                     private_key=private_key,
-                    algorithm=algorithm,
+                    name=name,
+                    common_name=common_name,
+                    organization=organization,
+                    organizational_unit=organizational_unit,
+                    country=country,
+                    state=state,
+                    locality=locality,
+                    validity_years=validity_years,
+                    hash_algorithm=hash_algorithm,
+                    path_length=path_length,
+                    key_usage=key_usage,
+                    crl_distribution_points=crl_distribution_points,
+                    authority_info_access=authority_info_access
                 )
-                
-                # 将私钥和证书转换为PEM格式
-                private_key_pem = private_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=serialization.NoEncryption()
-                ).decode('utf-8')
-                
-                certificate_pem = certificate.public_bytes(
-                    encoding=serialization.Encoding.PEM
-                ).decode('utf-8')
-                
+    
+                # 转换为PEM格式
+                private_key_pem, certificate_pem = CertificateGenerator.convert_to_pem(private_key, certificate)
+    
                 # 提取证书序列号
                 serial_number = str(certificate.serial_number)
-                
-                # 设置CA有效期
-                valid_from = datetime.now(timezone.utc)
-                valid_to = valid_from + timedelta(days=365 * validity_years)
-                
+    
                 # 创建CA记录
                 new_ca = CertificateAuthority(
                     name=name,
@@ -274,23 +144,23 @@ def init_routes(main_bp):
                 new_ca.key_size = key_size
                 # 设置高级选项属性
                 new_ca.hash_algorithm = hash_algorithm
-                new_ca.path_length = path_length_value
+                new_ca.path_length = int(path_length) if path_length else None
                 new_ca.key_usage = ','.join(key_usage) if key_usage else None
                 new_ca.crl_distribution_points = crl_distribution_points
                 new_ca.authority_info_access = authority_info_access
-                
+    
                 # 加密存储私钥
                 new_ca.set_private_key(private_key_pem)
-                
+    
                 # 保存到数据库
                 new_ca.save()
-                
+    
                 flash('证书颁发机构创建成功', 'success')
                 return redirect(url_for('main.ca_detail', ca_id=new_ca.id))
             except Exception as e:
                 flash(f'创建证书颁发机构失败：{str(e)}', 'danger')
                 return redirect(url_for('main.new_ca'))
-        
+    
         return render_template('main/new_ca.html', current_year=2024)
     
     @main_bp.route('/ca/<int:ca_id>')
@@ -358,199 +228,94 @@ def init_routes(main_bp):
         """签发新证书"""
         # 获取当前用户的所有CA
         cas = CertificateAuthority.query.filter_by(user_id=current_user.id, status='active').all()
-        
+    
         if request.method == 'POST':
             # 获取基础表单数据
             ca_id = request.form.get('ca_id')
             common_name = request.form.get('common_name')
             sans_text = request.form.get('sans')
             validity_days = int(request.form.get('validity_days', 365))
-            
+    
             # 获取高级选项数据
             # 密钥设置
             key_type = request.form.get('key_type', 'RSA')
             key_size = int(request.form.get('key_size', 2048))
             ec_curve = request.form.get('ec_curve', 'P-256')
             hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
-            
+    
             # 证书属性
             key_usage = request.form.getlist('key_usage')
             extended_key_usage = request.form.getlist('extended_key_usage')
             is_ca = request.form.get('is_ca') == 'on'
             path_length = request.form.get('path_length')
-            
+    
             # 信息扩展
             crl_distribution_points = request.form.get('crl_distribution_points')
             authority_info_access = request.form.get('authority_info_access')
-            
+    
             # 简单的表单验证
             if not ca_id or not common_name:
                 flash('请选择CA并填写通用名称', 'danger')
                 return redirect(url_for('main.new_certificate'))
-            
+    
             # 解析SANs（Subject Alternative Names）
             sans = []
             if sans_text:
                 sans = [san.strip() for san in sans_text.split('\n') if san.strip()]
-            
+    
             # 获取CA信息
             ca = CertificateAuthority.query.get_or_404(ca_id)
-            
+    
             # 检查CA是否为当前用户所有
             if ca.user_id != current_user.id:
                 flash('无权使用该CA签发证书', 'danger')
                 return redirect(url_for('main.new_certificate'))
-            
+    
             try:
-                # 根据密钥类型生成密钥对
-                if key_type == 'RSA':
-                    cert_private_key = rsa.generate_private_key(
-                        public_exponent=65537,
-                        key_size=key_size,
-                    )
-                else:  # ECDSA
-                    curve_map = {
-                        'P-256': ec.SECP256R1(),
-                        'P-384': ec.SECP384R1(),
-                        'P-521': ec.SECP521R1(),
-                    }
-                    cert_private_key = ec.generate_private_key(curve_map[ec_curve])
-                
-                # 解析CA私钥
+                from app.lib.certificate_generator import CertificateGenerator
+    
+                # 生成证书密钥对
+                cert_private_key = CertificateGenerator.generate_key_pair(
+                    key_type=key_type,
+                    key_size=key_size,
+                    ec_curve=ec_curve
+                )
+    
+                # 解析CA私钥和证书
                 ca_private_key_pem = ca.get_private_key()
                 ca_private_key = serialization.load_pem_private_key(
                     ca_private_key_pem.encode(),
                     password=None
                 )
-                
-                # 确保ca_private_key是正确的类型
-                if not isinstance(ca_private_key, (rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey)):
-                    raise ValueError("CA私钥类型不正确")
-                
-                # 解析CA证书
+    
                 ca_cert_pem = ca.certificate
                 ca_cert = x509.load_pem_x509_certificate(ca_cert_pem.encode())
-                
-                # 创建证书主体
-                subject = x509.Name([
-                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                ])
-                
-                # 颁发者是CA
-                issuer = ca_cert.subject
-                
-                # 设置证书有效期
-                valid_from = datetime.now(timezone.utc)
-                valid_to = valid_from + timedelta(days=validity_days)
-                
-                # 创建证书生成器
-                cert_builder = (
-                    x509.CertificateBuilder()
-                    .subject_name(subject)
-                    .issuer_name(issuer)
-                    .public_key(cert_private_key.public_key())
-                    .serial_number(x509.random_serial_number())
-                    .not_valid_before(valid_from)
-                    .not_valid_after(valid_to)
+    
+                # 创建证书
+                certificate, valid_from, valid_to = CertificateGenerator.create_end_entity_certificate(
+                    cert_private_key=cert_private_key,
+                    ca_private_key=ca_private_key,
+                    ca_cert=ca_cert,
+                    common_name=common_name,
+                    sans=sans,
+                    validity_days=validity_days,
+                    hash_algorithm=hash_algorithm,
+                    key_usage=key_usage,
+                    extended_key_usage=extended_key_usage,
+                    is_ca=is_ca,
+                    path_length=path_length,
+                    crl_distribution_points=crl_distribution_points,
+                    authority_info_access=authority_info_access
                 )
-                
-                # 添加基本约束扩展
-                # 如果用户明确标记为CA，则使用用户设置，否则默认为False
-                if is_ca:
-                    path_length_value = int(path_length) if path_length else None
-                    cert_builder = cert_builder.add_extension(
-                        x509.BasicConstraints(ca=True, path_length=path_length_value), critical=True,
-                    )
-                else:
-                    cert_builder = cert_builder.add_extension(
-                        x509.BasicConstraints(ca=False, path_length=None), critical=True,
-                    )
-                
-                # 添加密钥用法扩展
-                if key_usage:
-                    key_usage_flags = []
-                    if 'digitalSignature' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.digital_signature)
-                    if 'keyEncipherment' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_encipherment)
-                    if 'dataEncipherment' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.data_encipherment)
-                    if 'keyAgreement' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_agreement)
-                    if 'keyCertSign' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.key_cert_sign)
-                    if 'cRLSign' in key_usage:
-                        key_usage_flags.append(x509.KeyUsage.crl_sign)
-                    
-                    # 合并所有密钥用法标志
-                    key_usage_value = x509.KeyUsage(
-                        digital_signature='digitalSignature' in key_usage,
-                        content_commitment=False,  # 未在表单中提供
-                        key_encipherment='keyEncipherment' in key_usage,
-                        data_encipherment='dataEncipherment' in key_usage,
-                        key_agreement='keyAgreement' in key_usage,
-                        key_cert_sign='keyCertSign' in key_usage,
-                        crl_sign='cRLSign' in key_usage,
-                        encipher_only=False,  # 未在表单中提供
-                        decipher_only=False   # 未在表单中提供
-                    )
-                    
-                    cert_builder = cert_builder.add_extension(key_usage_value, critical=True)
-                
-                # 添加扩展密钥用法扩展
-                if extended_key_usage:
-                    extended_key_usage_oids = []
-                    if 'serverAuth' in extended_key_usage:
-                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.SERVER_AUTH)
-                    if 'clientAuth' in extended_key_usage:
-                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CLIENT_AUTH)
-                    if 'codeSigning' in extended_key_usage:
-                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.CODE_SIGNING)
-                    if 'emailProtection' in extended_key_usage:
-                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.EMAIL_PROTECTION)
-                    if 'timeStamping' in extended_key_usage:
-                        extended_key_usage_oids.append(x509.oid.ExtendedKeyUsageOID.TIME_STAMPING)
-                    
-                    cert_builder = cert_builder.add_extension(
-                        x509.ExtendedKeyUsage(extended_key_usage_oids),
-                        critical=False
-                    )
-                
-                # 添加SANs扩展（如果有）
-                if sans:
-                    san_list = [x509.DNSName(san) for san in sans]
-                    cert_builder = cert_builder.add_extension(
-                        x509.SubjectAlternativeName(san_list),
-                        critical=False,
-                    )
-                
-                # 选择哈希算法
-                hash_algorithm_map = {
-                    'SHA-256': hashes.SHA256(),
-                    'SHA-384': hashes.SHA384(),
-                    'SHA-512': hashes.SHA512(),
-                }
-                
-                # 签名证书
-                certificate = cert_builder.sign(
-                    private_key=ca_private_key,
-                    algorithm=hash_algorithm_map[hash_algorithm],
+    
+                # 转换为PEM格式
+                cert_private_key_pem, certificate_pem = CertificateGenerator.convert_to_pem(
+                    cert_private_key, certificate
                 )
-                
-                # 将私钥和证书转换为PEM格式
-                cert_private_key_pem = cert_private_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=serialization.NoEncryption()
-                ).decode('utf-8')
-                
-                certificate_pem = certificate.public_bytes(
-                    encoding=serialization.Encoding.PEM
-                ).decode('utf-8')
-                
+    
                 # 生成唯一序列号
                 serial_number = str(uuid.uuid4())
-                
+    
                 # 创建证书记录
                 new_cert = Certificate(
                     common_name=common_name,
@@ -561,23 +326,23 @@ def init_routes(main_bp):
                     valid_from=valid_from,
                     valid_to=valid_to
                 )
-                
+    
                 # 存储SANs
                 if sans:
                     new_cert.set_sans(sans)
-                
+    
                 # 加密存储私钥
                 new_cert.set_private_key(cert_private_key_pem)
-                
+    
                 # 保存到数据库
                 new_cert.save()
-                
+    
                 flash('证书创建成功', 'success')
                 return redirect(url_for('main.certificate_detail', cert_id=new_cert.id))
             except Exception as e:
                 flash(f'创建证书失败：{str(e)}', 'danger')
                 return redirect(url_for('main.new_certificate'))
-        
+    
         return render_template('main/new_certificate.html', current_year=2024, cas=cas)
     
     @main_bp.route('/certificate/<int:cert_id>')
