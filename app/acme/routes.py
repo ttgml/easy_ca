@@ -605,9 +605,18 @@ def init_acme_routes():
             key_usage = ['digitalSignature', 'keyEncipherment']
             extended_key_usage = ['serverAuth']
             
+            # 生成证书私钥对
+            cert_private_key = CertificateGenerator.generate_key_pair(
+                key_type='RSA',
+                key_size=2048
+            )
+            
+            # 从私钥获取公钥
+            cert_public_key = cert_private_key.public_key()
+            
             # 生成证书
             certificate, valid_from, valid_to = CertificateGenerator.create_certificate_from_csr(
-                csr.public_key(),
+                cert_public_key,  # 使用生成的公钥而不是CSR的公钥
                 ca_private_key,
                 ca_cert,
                 common_name,
@@ -617,6 +626,13 @@ def init_acme_routes():
                 key_usage=key_usage,
                 extended_key_usage=extended_key_usage
             )
+            
+            # 将私钥转换为PEM格式
+            cert_private_key_pem = cert_private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
+            ).decode('utf-8')
             
             # 将证书转换为PEM格式并添加CA证书以形成完整的证书链
             cert_pem = certificate.public_bytes(serialization.Encoding.PEM).decode()
@@ -640,8 +656,9 @@ def init_acme_routes():
                 status='valid'
             )
             
-            # 设置SANs
+            # 设置SANs和私钥
             cert_obj.set_sans(sans)
+            cert_obj.set_private_key(cert_private_key_pem)
             
             # 保存证书到数据库
             db.session.add(cert_obj)
