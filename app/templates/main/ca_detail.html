@@ -151,22 +151,7 @@
         </div>
         {% endif %}
         
-        <!-- CA证书下载 -->
-        <div class="bg-white rounded-lg shadow mb-6">
-            <div class="border-b border-gray-200 p-6">
-                <h3 class="text-lg font-semibold">CA证书下载</h3>
-            </div>
-            <div class="p-6 border-t border-gray-200 flex space-x-3">
-                <a href="{{ url_for('main.download_ca_certificate', ca_id=ca.id) }}" 
-                   class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
-                    <i class="fas fa-download mr-2"></i>下载CA证书
-                </a>
-                <a href="{{ url_for('main.download_ca_private_key', ca_id=ca.id) }}" 
-                   class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center">
-                    <i class="fas fa-key mr-2"></i>下载CA私钥
-                </a>
-            </div>
-        </div>
+
         
         <!-- 由此CA颁发的证书 -->
         <div class="bg-white rounded-lg shadow mb-6">
@@ -223,6 +208,14 @@
                        class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center">
                         <i class="fas fa-cog mr-2"></i>设置
                     </a>
+                    <a href="{{ url_for('main.download_ca_certificate', ca_id=ca.id) }}" 
+                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
+                        <i class="fas fa-download mr-2"></i>下载CA证书
+                    </a>
+                    <a href="{{ url_for('main.download_ca_private_key', ca_id=ca.id) }}" 
+                       class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center">
+                        <i class="fas fa-key mr-2"></i>下载CA私钥
+                    </a>
                     <button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center" 
                             onclick="document.getElementById('revoke-ca-modal').classList.remove('hidden')">
                         <i class="fas fa-times-circle mr-2"></i>吊销此CA
@@ -233,6 +226,14 @@
                             <i class="fas fa-check-circle mr-2"></i>激活此CA
                         </button>
                     </form>
+                    <a href="{{ url_for('main.download_ca_certificate', ca_id=ca.id) }}" 
+                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center">
+                        <i class="fas fa-download mr-2"></i>下载CA证书
+                    </a>
+                    <a href="{{ url_for('main.download_ca_private_key', ca_id=ca.id) }}" 
+                       class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center">
+                        <i class="fas fa-key mr-2"></i>下载CA私钥
+                    </a>
                     {% endif %}
                     <button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors flex items-center" 
                             onclick="document.getElementById('delete-ca-modal').classList.remove('hidden')">
