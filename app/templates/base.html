@@ -17,7 +17,7 @@
                 <div class="flex items-center space-x-2">
                     <i class="fas fa-certificate text-blue-600 text-2xl"></i>
                     <h1 class="text-xl font-bold text-gray-800">
-                        <a href="{{ url_for('main.home') }}" class="hover:text-blue-600 transition-colors">Easy CA</a>
+                        <a href="{% if current_user.is_authenticated %}{{ url_for('main.dashboard') }}{% else %}{{ url_for('main.home') }}{% endif %}" class="hover:text-blue-600 transition-colors">Easy CA</a>
                     </h1>
                 </div>
                 
