@@ -13,23 +13,7 @@
             <p class="mt-2 text-center text-sm text-gray-600">请输入您的账户信息</p>
         </div>
         
-        <!-- 显示消息 -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="rounded-md bg-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'blue' }}-50 p-4 mb-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'danger' else 'info-circle' }} text-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'blue' }}-400"></i>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm font-medium text-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'blue' }}-800">{{ message }}</p>
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+
         
         <form class="mt-8 space-y-6" method="POST" action="{{ url_for('auth.login') }}">
             <div class="rounded-md shadow-sm -space-y-px">

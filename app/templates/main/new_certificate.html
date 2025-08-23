@@ -38,16 +38,6 @@
         <!-- 表单内容 -->
         <div class="bg-white rounded-lg shadow p-6">
             <form method="POST" action="{{ url_for('main.new_certificate') }}">
-                <!-- 显示消息 -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="mb-4 p-4 rounded-lg bg-red-50 text-red-800">
-                                <i class="fas fa-exclamation-circle mr-2"></i>{{ message }}
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
                 
                 <!-- 第1步：选择证书颁发机构 -->
                 <div class="mb-8">

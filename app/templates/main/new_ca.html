@@ -9,14 +9,7 @@
             <p class="text-gray-600">填写以下信息以创建新的根CA</p>
         </div>
         
-        <!-- 显示消息 -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+
         
         <div class="bg-white rounded-lg shadow">
             <form method="POST" action="{{ url_for('main.new_ca') }}" class="p-6">
