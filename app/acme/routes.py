@@ -577,13 +577,6 @@ def init_acme_routes():
             # 从CSR创建证书
             from app.lib.certificate_generator import CertificateGenerator
             
-            # 获取通用名称
-            try:
-                common_name = csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
-            except (IndexError, AttributeError):
-                # 如果没有COMMON_NAME，使用第一个SAN（如果有）或默认值
-                common_name = 'example.com'
-                
             # 从CSR中提取SANs
             sans = []
             try:
@@ -591,7 +584,21 @@ def init_acme_routes():
                 # 使用正确的方法获取DNS名称
                 sans = [dns_name.value for dns_name in san_ext.value]
             except (x509.ExtensionNotFound, ValueError):
-                # 如果没有SANs，至少添加通用名称
+                # 如果没有SANs，保持空列表
+                pass
+                
+            # 获取通用名称
+            try:
+                common_name = csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+            except (IndexError, AttributeError):
+                # 如果没有COMMON_NAME，使用第一个SAN（如果有）或默认值
+                if sans:
+                    common_name = sans[0]
+                else:
+                    common_name = 'example.com'
+                
+            # 如果没有SANs，至少添加通用名称
+            if not sans:
                 sans = [common_name]
                 
             # 设置必要的密钥用法和扩展密钥用法
@@ -599,7 +606,7 @@ def init_acme_routes():
             extended_key_usage = ['serverAuth']
             
             # 生成证书
-            certificate, _, _ = CertificateGenerator.create_certificate_from_csr(
+            certificate, valid_from, valid_to = CertificateGenerator.create_certificate_from_csr(
                 csr.public_key(),
                 ca_private_key,
                 ca_cert,
@@ -616,9 +623,34 @@ def init_acme_routes():
             ca_cert_pem = ca.certificate
             full_chain = cert_pem + ca_cert_pem
             
+            # 保存证书到数据库
+            from app.models import Certificate
+            # 获取证书序列号
+            serial_number = format(certificate.serial_number, 'X')
+            
+            # 创建证书对象
+            cert_obj = Certificate(
+                common_name=common_name,
+                serial_number=serial_number,
+                certificate=cert_pem,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                user_id=ca.user_id,  # 使用CA的所有者作为证书所有者
+                ca_id=ca.id,
+                status='valid'
+            )
+            
+            # 设置SANs
+            cert_obj.set_sans(sans)
+            
+            # 保存证书到数据库
+            db.session.add(cert_obj)
+            db.session.flush()  # 获取cert_obj.id
+            
             # 更新订单状态和证书
             order.status = 'valid'
             order.certificate = full_chain
+            order.certificate_serial = serial_number
             db.session.commit()
         except Exception as e:
             import traceback
