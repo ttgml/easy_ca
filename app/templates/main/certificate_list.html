@@ -17,8 +17,43 @@
         </div>
     </div>
     
+    <!-- 搜索和排序 -->
+    <div class="mb-6 bg-white shadow rounded-lg p-4">
+        <form method="GET" class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
+            <!-- 搜索框 -->
+            <div class="flex-grow">
+                <div class="relative rounded-md shadow-sm">
+                    <input type="text" name="search" value="{{ search }}" placeholder="搜索通用名称或颁发者..." class="focus:ring-blue-500 focus:border-blue-500 block w-full pr-10 py-2 sm:text-sm border-gray-300 rounded-md">
+                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 排序选项 -->
+            <div class="flex space-x-2">
+                <select name="sort_by" class="focus:ring-blue-500 focus:border-blue-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md">
+                    <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>创建时间</option>
+                    <option value="common_name" {% if sort_by == 'common_name' %}selected{% endif %}>通用名称</option>
+                    <option value="issuer" {% if sort_by == 'issuer' %}selected{% endif %}>颁发者</option>
+                    <option value="valid_from" {% if sort_by == 'valid_from' %}selected{% endif %}>有效期开始</option>
+                    <option value="valid_to" {% if sort_by == 'valid_to' %}selected{% endif %}>有效期结束</option>
+                </select>
+                
+                <select name="sort_order" class="focus:ring-blue-500 focus:border-blue-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md">
+                    <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>降序</option>
+                    <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>升序</option>
+                </select>
+                
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    应用
+                </button>
+            </div>
+        </form>
+    </div>
+    
     <div class="bg-white shadow rounded-lg overflow-hidden">
-        {% if certificates %}
+        {% if certificates.items %}
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -31,7 +66,7 @@
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        {% for cert in certificates %}
+                        {% for cert in certificates.items %}
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900">{{ cert.common_name }}</div>
@@ -40,7 +75,9 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ cert.ca.name }}</div>
+                                    <div class="text-sm text-gray-900">
+                                        <a href="{{ url_for('main.ca_detail', ca_id=cert.ca.id) }}" class="text-blue-600 hover:text-blue-900">{{ cert.ca.name }}</a>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-900">{{ cert.valid_from.strftime('%Y-%m-%d') }} 至 {{ cert.valid_to.strftime('%Y-%m-%d') }}</div>
@@ -68,6 +105,70 @@
                     </tbody>
                 </table>
             </div>
+            
+            <!-- 分页 -->
+            {% if certificates.pages > 1 %}
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    <a href="{{ url_for('main.certificate_list', page=certificates.prev_num, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        上一页
+                    </a>
+                    <a href="{{ url_for('main.certificate_list', page=certificates.next_num, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        下一页
+                    </a>
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            显示第 <span class="font-medium">{{ (certificates.page - 1) * 10 + 1 }}</span> 到 <span class="font-medium">{{ [certificates.page * 10, certificates.total] | min }}</span> 条结果，共 <span class="font-medium">{{ certificates.total }}</span> 条
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if certificates.has_prev %}
+                                <a href="{{ url_for('main.certificate_list', page=1, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">第一页</span>
+                                    <i class="fas fa-angle-double-left"></i>
+                                </a>
+                                <a href="{{ url_for('main.certificate_list', page=certificates.prev_num, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">上一页</span>
+                                    <i class="fas fa-angle-left"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for page_num in certificates.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != certificates.page %}
+                                        <a href="{{ url_for('main.certificate_list', page=page_num, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                            {{ page_num }}
+                                        </a>
+                                    {% else %}
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600">
+                                            {{ page_num }}
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                        …
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if certificates.has_next %}
+                                <a href="{{ url_for('main.certificate_list', page=certificates.next_num, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">下一页</span>
+                                    <i class="fas fa-angle-right"></i>
+                                </a>
+                                <a href="{{ url_for('main.certificate_list', page=certificates.pages, search=search, sort_by=sort_by, sort_order=sort_order) }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">最后一页</span>
+                                    <i class="fas fa-angle-double-right"></i>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         {% else %}
             <div class="text-center py-12">
                 <i class="fas fa-certificate text-gray-300 text-4xl mb-4"></i>

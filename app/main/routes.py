@@ -1,11 +1,12 @@
 from flask import render_template, redirect, url_for, flash, request, Response
 from flask_login import login_required, current_user
 from app.models import CertificateAuthority, Certificate
+from app import db
 from datetime import datetime, timedelta, timezone
 import uuid
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, ec
+from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, ed448, x25519, x448
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 import logging
@@ -67,6 +68,9 @@ def init_routes(main_bp):
     @login_required
     def new_ca():
         """创建新的证书颁发机构"""
+        # 获取当前用户的所有活跃CA，用于父CA选择
+        active_cas = CertificateAuthority.query.filter_by(user_id=current_user.id, status='active').all()
+        
         if request.method == 'POST':
             # 获取表单数据
             name = request.form.get('name')
@@ -79,6 +83,8 @@ def init_routes(main_bp):
             validity_years = int(request.form.get('validity_years', 10))
             key_type = request.form.get('key_type', 'RSA')
             key_size = int(request.form.get('key_size', 2048))
+            ca_type = request.form.get('ca_type', 'root')  # CA类型：root(根CA) 或 intermediate(中间CA)
+            parent_ca_id = request.form.get('parent_ca_id')  # 父CA ID（仅中间CA需要）
     
             # 获取高级选项数据
             hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
@@ -90,6 +96,11 @@ def init_routes(main_bp):
             # 简单的表单验证
             if not name or not common_name:
                 flash('请填写CA名称和通用名称', 'danger')
+                return redirect(url_for('main.new_ca'))
+            
+            # 如果是中间CA，需要选择父CA
+            if ca_type == 'intermediate' and not parent_ca_id:
+                flash('请选择父CA', 'danger')
                 return redirect(url_for('main.new_ca'))
     
             # 使用证书生成器创建CA
@@ -125,19 +136,22 @@ def init_routes(main_bp):
     
                 # 创建CA记录
                 new_ca = CertificateAuthority(
-                    name=name,
-                    common_name=common_name,
-                    organization=organization,
-                    organizational_unit=organizational_unit,  # 组织单位 (OU)
-                    country=country,                          # 国家 (C)
-                    state=state,                              # 省/州 (ST)
-                    locality=locality,                        # 城市 (L)
-                    serial_number=serial_number,
-                    valid_from=valid_from,
-                    valid_to=valid_to,
-                    certificate=certificate_pem,
-                    user_id=current_user.id
+                    name=request.form.get('name'),
+                    common_name=request.form.get('common_name'),
+                    organization=request.form.get('organization'),
+                    organizational_unit=request.form.get('organizational_unit'),  # 组织单位 (OU)
+                    country=request.form.get('country'),                          # 国家 (C)
+                    state=request.form.get('state'),                              # 省/州 (ST)
+                    locality=request.form.get('locality')                         # 城市 (L)
                 )
+                
+                # 设置CA的其他属性
+                new_ca.serial_number = serial_number
+                new_ca.valid_from = valid_from
+                new_ca.valid_to = valid_to
+                new_ca.certificate = certificate_pem
+                new_ca.user_id = current_user.id
+                
                 # 设置CA的其他属性
                 new_ca.validity_years = validity_years
                 new_ca.key_type = key_type
@@ -148,6 +162,12 @@ def init_routes(main_bp):
                 new_ca.key_usage = ','.join(key_usage) if key_usage else None
                 new_ca.crl_distribution_points = crl_distribution_points
                 new_ca.authority_info_access = authority_info_access
+    
+                # 如果是中间CA，设置父CA关系
+                if ca_type == 'intermediate' and parent_ca_id:
+                    parent_ca = CertificateAuthority.query.get(parent_ca_id)
+                    if parent_ca and parent_ca.user_id == current_user.id:
+                        new_ca.parent_id = parent_ca_id
     
                 # 加密存储私钥
                 new_ca.set_private_key(private_key_pem)
@@ -161,7 +181,7 @@ def init_routes(main_bp):
                 flash(f'创建证书颁发机构失败：{str(e)}', 'danger')
                 return redirect(url_for('main.new_ca'))
     
-        return render_template('main/new_ca.html', current_year=2024)
+        return render_template('main/new_ca.html', current_year=2024, active_cas=active_cas)
     
     @main_bp.route('/ca/<int:ca_id>')
     @login_required
@@ -302,8 +322,6 @@ def init_routes(main_bp):
                     hash_algorithm=hash_algorithm,
                     key_usage=key_usage,
                     extended_key_usage=extended_key_usage,
-                    is_ca=is_ca,
-                    path_length=path_length,
                     crl_distribution_points=crl_distribution_points,
                     authority_info_access=authority_info_access
                 )
@@ -318,7 +336,7 @@ def init_routes(main_bp):
     
                 # 创建证书记录
                 new_cert = Certificate(
-                    common_name=common_name,
+                    common_name=request.form.get('common_name'),
                     serial_number=serial_number,
                     certificate=certificate_pem,
                     user_id=current_user.id,
@@ -718,7 +736,7 @@ def init_routes(main_bp):
     @login_required
     def ca_list():
         """CA列表页面"""
-        # 获取当前用户的所有CA
+        # 获取当前用户的所有CA，按创建时间降序排列
         cas = CertificateAuthority.query.filter_by(user_id=current_user.id).order_by(CertificateAuthority.created_at.desc()).all()
         return render_template('main/ca_list.html', current_year=2024, cas=cas)
     
@@ -726,9 +744,43 @@ def init_routes(main_bp):
     @login_required
     def certificate_list():
         """证书列表页面"""
-        # 获取当前用户的所有证书
-        certificates = Certificate.query.filter_by(user_id=current_user.id).order_by(Certificate.created_at.desc()).all()
-        return render_template('main/certificate_list.html', current_year=2024, certificates=certificates)
+        # 获取查询参数
+        page = request.args.get('page', 1, type=int)
+        search = request.args.get('search', '', type=str)
+        sort_by = request.args.get('sort_by', 'created_at', type=str)
+        sort_order = request.args.get('sort_order', 'desc', type=str)
+        
+        # 构建查询
+        query = Certificate.query.filter_by(user_id=current_user.id)
+        
+        # 添加搜索条件
+        if search:
+            query = query.join(CertificateAuthority).filter(
+                db.or_(
+                    Certificate.common_name.contains(search),
+                    CertificateAuthority.name.contains(search)
+                )
+            )
+        
+        # 添加排序
+        if sort_by == 'common_name':
+            order_clause = Certificate.common_name.asc() if sort_order == 'asc' else Certificate.common_name.desc()
+        elif sort_by == 'issuer':
+            order_clause = CertificateAuthority.name.asc() if sort_order == 'asc' else CertificateAuthority.name.desc()
+        elif sort_by == 'valid_from':
+            order_clause = Certificate.valid_from.asc() if sort_order == 'asc' else Certificate.valid_from.desc()
+        elif sort_by == 'valid_to':
+            order_clause = Certificate.valid_to.asc() if sort_order == 'asc' else Certificate.valid_to.desc()
+        else:  # created_at
+            order_clause = Certificate.created_at.asc() if sort_order == 'asc' else Certificate.created_at.desc()
+        
+        query = query.order_by(order_clause)
+        
+        # 分页查询（每页10条记录）
+        certificates = query.paginate(page=page, per_page=10, error_out=False)
+        
+        return render_template('main/certificate_list.html', current_year=2024, certificates=certificates, 
+                             search=search, sort_by=sort_by, sort_order=sort_order)
     
     @main_bp.route('/ca/import', methods=['GET', 'POST'])
     @login_required
@@ -759,28 +811,99 @@ def init_routes(main_bp):
                 private_key = serialization.load_pem_private_key(private_key_data.encode(), password=None, backend=default_backend())
                 
                 # 验证证书和私钥是否匹配
-                if certificate.public_key().public_numbers() != private_key.public_key().public_numbers():
-                    flash('证书和私钥不匹配', 'danger')
-                    return redirect(url_for('main.import_ca'))
+                # 对于某些密钥类型（如Ed25519），public_numbers()方法可能不可用
+                try:
+                    # 对于支持public_numbers()的密钥类型，进行验证
+                    cert_public_numbers = certificate.public_key().public_numbers()
+                    private_key_public_numbers = private_key.public_key().public_numbers()
+                    if cert_public_numbers != private_key_public_numbers:
+                        flash('证书和私钥不匹配', 'danger')
+                        return redirect(url_for('main.import_ca'))
+                except AttributeError:
+                    # 对于不支持public_numbers()的密钥类型（如Ed25519, X25519, Ed448, X448），使用其他方式验证
+                    # 这里我们检查公钥的字节表示是否匹配
+                    # 首先检查密钥类型是否支持Raw编码
+                    try:
+                        cert_public_key_bytes = certificate.public_key().public_bytes(
+                            encoding=serialization.Encoding.Raw,
+                            format=serialization.PublicFormat.Raw
+                        )
+                        private_key_public_key_bytes = private_key.public_key().public_bytes(
+                            encoding=serialization.Encoding.Raw,
+                            format=serialization.PublicFormat.Raw
+                        )
+                        if cert_public_key_bytes != private_key_public_key_bytes:
+                            flash('证书和私钥不匹配', 'danger')
+                            return redirect(url_for('main.import_ca'))
+                    except ValueError:
+                        # 如果Raw编码不支持，则跳过验证
+                        pass
+                
+                # 确定密钥类型
+                key_type = 'RSA'
+                if isinstance(private_key, rsa.RSAPrivateKey):
+                    key_type = 'RSA'
+                elif isinstance(private_key, ec.EllipticCurvePrivateKey):
+                    key_type = 'ECC'
+                elif isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey, x25519.X25519PrivateKey, x448.X448PrivateKey)):
+                    key_type = 'Ed25519/X25519/Ed448/X448'
+                
+                # 确定密钥大小
+                key_size = 2048  # 默认值
+                if hasattr(private_key, 'key_size') and private_key.key_size is not None:
+                    key_size = private_key.key_size
+                elif isinstance(private_key, (ed25519.Ed25519PrivateKey, x25519.X25519PrivateKey)):
+                    key_size = 256  # Ed25519和X25519的位数
+                elif isinstance(private_key, (ed448.Ed448PrivateKey, x448.X448PrivateKey)):
+                    key_size = 448  # Ed448和X448的位数
+                
+                # 从证书中提取信息
+                common_name = ''
+                organization = None
+                organizational_unit = None
+                country = None
+                state = None
+                locality = None
+                
+                # 提取证书主题信息
+                subject_attrs = certificate.subject
+                for attr in subject_attrs:
+                    if attr.oid == x509.NameOID.COMMON_NAME:
+                        common_name = attr.value
+                    elif attr.oid == x509.NameOID.ORGANIZATION_NAME:
+                        organization = attr.value
+                    elif attr.oid == x509.NameOID.ORGANIZATIONAL_UNIT_NAME:
+                        organizational_unit = attr.value
+                    elif attr.oid == x509.NameOID.COUNTRY_NAME:
+                        country = attr.value
+                    elif attr.oid == x509.NameOID.STATE_OR_PROVINCE_NAME:
+                        state = attr.value
+                    elif attr.oid == x509.NameOID.LOCALITY_NAME:
+                        locality = attr.value
+                
+                # 计算有效期年数
+                validity_years = (certificate.not_valid_after - certificate.not_valid_before).days // 365
                 
                 # 创建新的CA对象
                 ca = CertificateAuthority(
-                    name=name,
-                    common_name=certificate.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)[0].value,
-                    organization=certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATION_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATION_NAME) else None,
-                    organizational_unit=certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATIONAL_UNIT_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATIONAL_UNIT_NAME) else None,
-                    country=certificate.subject.get_attributes_for_oid(x509.NameOID.COUNTRY_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.COUNTRY_NAME) else None,
-                    state=certificate.subject.get_attributes_for_oid(x509.NameOID.STATE_OR_PROVINCE_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.STATE_OR_PROVINCE_NAME) else None,
-                    locality=certificate.subject.get_attributes_for_oid(x509.NameOID.LOCALITY_NAME)[0].value if certificate.subject.get_attributes_for_oid(x509.NameOID.LOCALITY_NAME) else None,
-                    validity_years=(certificate.not_valid_after - certificate.not_valid_before).days // 365,
+                    name=request.form.get('name'),
+                    common_name=common_name,
+                    organization=organization,
+                    organizational_unit=organizational_unit,
+                    country=country,
+                    state=state,
+                    locality=locality,
+                    validity_years=validity_years,
                     valid_from=certificate.not_valid_before,
                     valid_to=certificate.not_valid_after,
-                    key_type='RSA' if 'RSA' in str(type(private_key)) else 'ECC',
-                    key_size=private_key.key_size if hasattr(private_key, 'key_size') else 256,
                     serial_number=str(certificate.serial_number),
                     certificate=certificate_data,
                     user_id=current_user.id
                 )
+                
+                # 设置密钥类型和大小
+                ca.key_type = key_type
+                ca.key_size = key_size
                 
                 # 设置私钥
                 ca.set_private_key(private_key_data)
