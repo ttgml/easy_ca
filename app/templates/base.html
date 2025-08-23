@@ -33,7 +33,7 @@
                     <li><a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:text-blue-600 transition-colors">仪表盘</a></li>
                     <li><a href="{{ url_for('main.new_certificate') }}" class="text-gray-600 hover:text-blue-600 transition-colors">签发证书</a></li>
                     <li><a href="{{ url_for('main.new_ca') }}" class="text-gray-600 hover:text-blue-600 transition-colors">创建CA</a></li>
-                    <li><a href="{{ url_for('auth.logout') }}" class="text-gray-600 hover:text-red-600 transition-colors">退出</a></li>
+                    <li><a href="{{ url_for('auth.logout') }}" class="text-gray-600 hover:text-red-600 transition-colors" onclick="event.preventDefault(); if(confirm('您确定要退出登录吗？')) { window.location.href=this.href; }">退出</a></li>
                 </ul>
                 {% endif %}
             </div>
@@ -41,6 +41,19 @@
     </header>
     
     <main class="container mx-auto px-4 py-8">
+        <!-- Flash消息显示 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-lg shadow mb-2 {% if category == 'success' %}bg-green-100 text-green-800{% elif category == 'danger' %}bg-red-100 text-red-800{% elif category == 'warning' %}bg-yellow-100 text-yellow-800{% elif category == 'info' %}bg-blue-100 text-blue-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
         {% block content %}{% endblock %}
     </main>
     
