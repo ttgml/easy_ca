@@ -151,16 +151,10 @@
         </div>
         {% endif %}
         
-        <!-- CA证书内容 -->
+        <!-- CA证书下载 -->
         <div class="bg-white rounded-lg shadow mb-6">
-            <div class="border-b border-gray-200 p-6 flex justify-between items-center">
-                <h3 class="text-lg font-semibold">CA证书 (PEM格式)</h3>
-                <button class="text-blue-600 hover:text-blue-800 flex items-center" onclick="copyToClipboard('ca-certificate-content')">
-                    <i class="fas fa-copy mr-1"></i>复制
-                </button>
-            </div>
-            <div class="p-6 bg-gray-800 text-green-400 overflow-x-auto">
-                <pre id="ca-certificate-content" class="text-sm">{{ ca.certificate }}</pre>
+            <div class="border-b border-gray-200 p-6">
+                <h3 class="text-lg font-semibold">CA证书下载</h3>
             </div>
             <div class="p-6 border-t border-gray-200 flex space-x-3">
                 <a href="{{ url_for('main.download_ca_certificate', ca_id=ca.id) }}" 
