@@ -253,9 +253,10 @@ class CertificateAuthority(BaseModel):
     parent_id = db.Column(db.Integer, db.ForeignKey('certificate_authorities.id'))
     children = db.relationship('CertificateAuthority', backref=db.backref('parent', remote_side='CertificateAuthority.id'))
     
-    # 密钥类型和大小
+    # 密钥类型、大小和曲线
     key_type = db.Column(db.String(20), default='RSA')  # RSA或ECC
-    key_size = db.Column(db.Integer, default=2048)  # 2048/4096或ec256
+    key_size = db.Column(db.Integer, default=4096)  # 2048/4096，ECC时为NULL
+    ec_curve = db.Column(db.String(50))  # ECC曲线，如P-256、P-384、P-521，RSA时为NULL
     
     # 序列号
     serial_number = db.Column(db.String(100), unique=True)

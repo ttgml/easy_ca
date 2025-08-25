@@ -82,9 +82,16 @@ def init_routes(main_bp):
             locality = request.form.get('locality')                        # 城市 (L)
             validity_years = int(request.form.get('validity_years', 10))
             key_type = request.form.get('key_type', 'RSA')
-            key_size = int(request.form.get('key_size', 2048))
             ca_type = request.form.get('ca_type', 'root')  # CA类型：root(根CA) 或 intermediate(中间CA)
             parent_ca_id = request.form.get('parent_ca_id')  # 父CA ID（仅中间CA需要）
+
+            # 根据密钥类型获取相应参数
+            if key_type == 'RSA':
+                key_size = int(request.form.get('key_size', 4096))
+                ec_curve = None
+            else:  # ECC
+                key_size = None
+                ec_curve = request.form.get('ecc_curve', 'P-384')
     
             # 获取高级选项数据
             hash_algorithm = request.form.get('hash_algorithm', 'SHA-256')
@@ -108,8 +115,10 @@ def init_routes(main_bp):
                 from app.lib.certificate_generator import CertificateGenerator
     
                 # 生成密钥对
-                private_key = CertificateGenerator.generate_key_pair(key_type=key_type, key_size=key_size)
-    
+                if key_type == 'RSA':
+                    private_key = CertificateGenerator.generate_key_pair(key_type=key_type, key_size=key_size)
+                else:  # ECC
+                    private_key = CertificateGenerator.generate_key_pair(key_type=key_type, ec_curve=ec_curve)    
                 # 创建CA证书
                 certificate, valid_from, valid_to = CertificateGenerator.create_ca_certificate(
                     private_key=private_key,
@@ -155,8 +164,11 @@ def init_routes(main_bp):
                 # 设置CA的其他属性
                 new_ca.validity_years = validity_years
                 new_ca.key_type = key_type
-                new_ca.key_size = key_size
-                # 设置高级选项属性
+                if key_type == 'RSA':
+                    new_ca.key_size = key_size
+                else:  # ECC
+                    new_ca.ec_curve = ec_curve
+                    new_ca.key_size = None  # 对于ECC，不使用key_size字段                # 设置高级选项属性
                 new_ca.hash_algorithm = hash_algorithm
                 new_ca.path_length = int(path_length) if path_length else None
                 new_ca.key_usage = ','.join(key_usage) if key_usage else None
