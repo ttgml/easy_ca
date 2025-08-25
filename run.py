@@ -1,5 +1,9 @@
 from app import create_app
 import os
+from dotenv import load_dotenv
+
+# 加载.env文件
+load_dotenv()
 
 # 创建Flask应用实例
 app = create_app(os.getenv('FLASK_CONFIG', 'development'))

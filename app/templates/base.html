@@ -25,7 +25,9 @@
                 {% if not current_user.is_authenticated %}
                 <ul class="flex space-x-4">
                     <li><a href="{{ url_for('auth.login') }}" class="text-gray-600 hover:text-blue-600 transition-colors font-medium">登录</a></li>
+                    {% if config.get('ALLOW_USER_REGISTRATION', False) %}
                     <li><a href="{{ url_for('auth.register') }}" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors font-medium">注册</a></li>
+                    {% endif %}
                 </ul>
                 {% else %}
                 <!-- 登录状态下显示的导航 -->

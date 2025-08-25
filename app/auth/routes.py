@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, session
+from flask import render_template, redirect, url_for, flash, request, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from app.auth import auth_bp
 from app.models import User
@@ -12,6 +12,11 @@ def init_auth_routes():
     @auth_bp.route('/register', methods=['GET', 'POST'])
     def register():
         """用户注册路由"""
+        # 检查是否允许用户注册
+        if not current_app.config.get('ALLOW_USER_REGISTRATION', False):
+            flash('当前系统已关闭用户注册功能，请联系管理员', 'danger')
+            return redirect(url_for('auth.login'))
+        
         if request.method == 'POST':
             # 获取表单数据
             username = request.form.get('username')

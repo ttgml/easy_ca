@@ -16,6 +16,9 @@ class Config:
     # 其他通用配置
     DEBUG = False
     TESTING = False
+    
+    # 用户注册配置
+    ALLOW_USER_REGISTRATION = os.environ.get('ALLOW_USER_REGISTRATION', 'True').lower() in ['true', '1', 'yes']
 
 
 class DevelopmentConfig(Config):

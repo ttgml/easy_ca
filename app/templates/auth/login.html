@@ -61,7 +61,11 @@
         <div class="text-center mt-4">
             <p class="text-sm text-gray-600">
                 还没有账户？
+                {% if config.get('ALLOW_USER_REGISTRATION', False) %}
                 <a href="{{ url_for('auth.register') }}" class="font-medium text-blue-600 hover:text-blue-500">立即注册</a>
+                {% else %}
+                <span class="text-gray-500">请联系管理员</span>
+                {% endif %}
             </p>
         </div>
     </div>
