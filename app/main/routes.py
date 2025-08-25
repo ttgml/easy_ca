@@ -55,7 +55,7 @@ def init_routes(main_bp):
         recent_certs = Certificate.query.filter_by(user_id=current_user.id).order_by(Certificate.created_at.desc()).limit(5).all()
         
         return render_template('main/dashboard.html', 
-                             current_year=2024, 
+                             current_year=2025, 
                              ca_count=ca_count, 
                              cert_count=cert_count, 
                              active_certs=active_certs,
