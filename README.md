@@ -2,9 +2,6 @@
 
 **EasyCA** 是一个现代化的、开源的SaaS平台，旨在让您轻松地创建和管理自己的私有公钥基础设施（PKI）。通过直观的Web界面或完全自动化的ACME客户端，为您的基础设施、内部网络和物联网设备签发可信的TLS证书。
 
-🌐 **在线演示**: [https://your-demo-link.com](https://your-demo-link.com) (如果可用)
-📖 **文档**: [https://docs.EasyCA.com](https://docs.EasyCA.com) (如果可用)
-
 ---
 
 ## ✨ 核心特性
